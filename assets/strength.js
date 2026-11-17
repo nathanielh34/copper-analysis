@@ -29,8 +29,8 @@
     if (built) return; built = true;
     const base = {
       autoSize: true,
-      layout: { background: { type: "solid", color: "#fff" }, textColor: "#5b6577", fontFamily: getComputedStyle(document.body).fontFamily, fontSize: 12 },
-      grid: { vertLines: { color: "#eef1f5" }, horzLines: { color: "#eef1f5" } },
+      layout: { background: { type: "solid", color: "#fff" }, textColor: "#6d5f53", fontFamily: getComputedStyle(document.body).fontFamily, fontSize: 12 },
+      grid: { vertLines: { color: "#f1e9de" }, horzLines: { color: "#f1e9de" } },
       rightPriceScale: { borderVisible: false, minimumWidth: 64 },
       leftPriceScale: { borderVisible: false, visible: true, minimumWidth: 64 },
       timeScale: { borderVisible: false, rightOffset: 2 },
@@ -41,8 +41,8 @@
     const idx = ch.addBaselineSeries({ baseValue: { type: "price", price: 0 }, priceScaleId: "right", lineWidth: 2,
       topLineColor: "#1a7f4b", topFillColor1: "rgba(26,127,75,.28)", topFillColor2: "rgba(26,127,75,.04)",
       bottomLineColor: "#c0392b", bottomFillColor1: "rgba(192,57,43,.04)", bottomFillColor2: "rgba(192,57,43,.28)", priceLineVisible: false, title: "Index" });
-    const xar = ch.addLineSeries({ priceScaleId: "left", color: "#1f3864", lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title: "Copper" });
-    const vol = vc.addHistogramSeries({ color: "rgba(46,85,151,.55)", priceLineVisible: false, lastValueVisible: false });
+    const xar = ch.addLineSeries({ priceScaleId: "left", color: "#6b3418", lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title: "Copper" });
+    const vol = vc.addHistogramSeries({ color: "rgba(176,97,47,.55)", priceLineVisible: false, lastValueVisible: false });
     vc.applyOptions({ leftPriceScale: { visible: true } });
 
     // weekly volume from daily count7 on each Sunday
@@ -79,7 +79,7 @@
       const r = t ? S.series.find((x) => x[0] === t) : S.series[S.series.length - 1];
       if (!r) return;
       const px = xarDaily.find((p) => p.time === r[0]);
-      $("#siLegend").innerHTML = `<b>${r[0]}</b> &nbsp; Index <b class="${cls(r[1])}">${sgn(r[1])}</b> &nbsp; Tone <b class="${cls(r[2])}">${r[2] == null ? "—" : sgn(r[2] * 100, 0) + "%"}</b> &nbsp; Headlines (7 days) <b>${r[3]}</b>${px && state.xar ? ` &nbsp; <span style="color:#1f3864">Copper <b>${px.value.toFixed(3)}</b></span>` : ""}`;
+      $("#siLegend").innerHTML = `<b>${r[0]}</b> &nbsp; Index <b class="${cls(r[1])}">${sgn(r[1])}</b> &nbsp; Tone <b class="${cls(r[2])}">${r[2] == null ? "—" : sgn(r[2] * 100, 0) + "%"}</b> &nbsp; Headlines (7 days) <b>${r[3]}</b>${px && state.xar ? ` &nbsp; <span style="color:#6b3418">Copper <b>${px.value.toFixed(3)}</b></span>` : ""}`;
     }
     ch.subscribeCrosshairMove((p) => legend(p && p.time ? (typeof p.time === "string" ? p.time : `${p.time.year}-${String(p.time.month).padStart(2, "0")}-${String(p.time.day).padStart(2, "0")}`) : null));
     const toISO = (t) => (typeof t === "string" ? t : `${t.year}-${String(t.month).padStart(2, "0")}-${String(t.day).padStart(2, "0")}`);

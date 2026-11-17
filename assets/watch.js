@@ -14,8 +14,8 @@
 
   // ---------- colors ----------
   const C = { up: "#1a7f4b", down: "#c0392b", upSoft: "rgba(26,127,75,.45)", downSoft: "rgba(192,57,43,.45)",
-    navy: "#1f3864", blue: "#2e5597", orange: "#d9822b", purple: "#7b4fb3", grid: "#eef1f5", text: "#5b6577",
-    sma50: "#d9822b", sma200: "#7b4fb3" };
+    navy: "#6b3418", blue: "#b0612f", orange: "#2f6f73", purple: "#7b4fb3", grid: "#f1e9de", text: "#6d5f53",
+    sma50: "#2f6f73", sma200: "#7b4fb3" };
 
   // ---------- number formatting ----------
   const f2 = (n) => (n == null ? "—" : Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
@@ -191,7 +191,7 @@
     const rc = LC.createChart($("#rsiChart"), { ...base, layout: { ...base.layout, attributionLogo: false } });
 
     const candles = main.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderUpColor: C.up, borderDownColor: C.down, wickUpColor: C.up, wickDownColor: C.down, priceLineColor: C.navy, title: "Copper" });
-    const area = main.addAreaSeries({ lineColor: C.navy, topColor: "rgba(31,56,100,.22)", bottomColor: "rgba(31,56,100,0)", lineWidth: 2, visible: false, title: "Copper" });
+    const area = main.addAreaSeries({ lineColor: C.navy, topColor: "rgba(107,52,24,.22)", bottomColor: "rgba(107,52,24,0)", lineWidth: 2, visible: false, title: "Copper" });
     const spyLine = main.addLineSeries({ color: "#0f9bb5", lineWidth: 2, visible: false, priceLineVisible: false, title: "S&P 500" });
     const l50 = main.addLineSeries({ color: C.sma50, lineWidth: 1.5, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false });
     const l200 = main.addLineSeries({ color: C.sma200, lineWidth: 1.5, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false });
@@ -206,7 +206,7 @@
       autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }) });
     rl.createPriceLine({ price: 70, color: C.down, lineStyle: LC.LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false, title: "70" });
     rl.createPriceLine({ price: 30, color: C.up, lineStyle: LC.LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false, title: "30" });
-    rl.createPriceLine({ price: 50, color: "#c4cad4", lineStyle: LC.LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "" });
+    rl.createPriceLine({ price: 50, color: "#d8c8b6", lineStyle: LC.LineStyle.Dotted, lineWidth: 1, axisLabelVisible: false, title: "" });
 
     // Keep the price and RSI panes scrolled/zoomed together
     let syncing = false;

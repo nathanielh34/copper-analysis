@@ -24,8 +24,8 @@
     const sx = (v) => P.l + ((v - xr[0]) / (xr[1] - xr[0])) * (W - P.l - P.r);
     const sy = (v) => P.t + (1 - (v - yr[0]) / (yr[1] - yr[0])) * (H - P.t - P.b);
     let g = "";
-    ticks(...yr).forEach((t) => { g += `<line x1="${P.l}" x2="${W - P.r}" y1="${sy(t)}" y2="${sy(t)}" stroke="#eef1f5"/><text x="${P.l - 8}" y="${sy(t) + 4}" text-anchor="end" class="ax">${yFmt(t)}</text>`; });
-    if (xl !== null) ticks(...xr).forEach((t) => { g += `<line y1="${P.t}" y2="${H - P.b}" x1="${sx(t)}" x2="${sx(t)}" stroke="#eef1f5"/><text x="${sx(t)}" y="${H - P.b + 16}" text-anchor="middle" class="ax">${xFmt(t)}</text>`; });
+    ticks(...yr).forEach((t) => { g += `<line x1="${P.l}" x2="${W - P.r}" y1="${sy(t)}" y2="${sy(t)}" stroke="#f1e9de"/><text x="${P.l - 8}" y="${sy(t) + 4}" text-anchor="end" class="ax">${yFmt(t)}</text>`; });
+    if (xl !== null) ticks(...xr).forEach((t) => { g += `<line y1="${P.t}" y2="${H - P.b}" x1="${sx(t)}" x2="${sx(t)}" stroke="#f1e9de"/><text x="${sx(t)}" y="${H - P.b + 16}" text-anchor="middle" class="ax">${xFmt(t)}</text>`; });
     if (xl) g += `<text x="${(P.l + W - P.r) / 2}" y="${H - 6}" text-anchor="middle" class="axl">${esc(xl)}</text>`;
     g += `<text transform="translate(14 ${(P.t + H - P.b) / 2}) rotate(-90)" text-anchor="middle" class="axl">${esc(yl)}</text>`;
     return { sx, sy, g };
@@ -39,8 +39,8 @@
     const { sx, sy, g } = frame(xr, yr, a.xLabel, a.yLabel, (v) => (isRate ? (v > 0 ? "+" : "") + v : v + "%"), (v) => v + "%");
     const al = a.coef.alpha.est, b = a.coef.beta.est;
     let s = g;
-    if (xr[0] < 0 && xr[1] > 0) s += `<line x1="${sx(0)}" x2="${sx(0)}" y1="${P.t}" y2="${H - P.b}" stroke="#c4cad4"/>`;
-    if (yr[0] < 0 && yr[1] > 0) s += `<line x1="${P.l}" x2="${W - P.r}" y1="${sy(0)}" y2="${sy(0)}" stroke="#c4cad4"/>`;
+    if (xr[0] < 0 && xr[1] > 0) s += `<line x1="${sx(0)}" x2="${sx(0)}" y1="${P.t}" y2="${H - P.b}" stroke="#d8c8b6"/>`;
+    if (yr[0] < 0 && yr[1] > 0) s += `<line x1="${P.l}" x2="${W - P.r}" y1="${sy(0)}" y2="${sy(0)}" stroke="#d8c8b6"/>`;
     s += a.points.map((p) => `<circle cx="${sx(p[1])}" cy="${sy(p[2])}" r="4.5" class="dot"><title>${p[0]}: ${isRate ? `${esc(a.short2 || "10Y yield")} ${p[1] > 0 ? "+" : ""}${n2(p[1])} ${esc(a.unit || "pp")}` : `${benchName(a)} ${n2(p[1])}%`}, copper ${n2(p[2])}%</title></circle>`).join("");
     s += `<line x1="${sx(xr[0])}" y1="${sy(al + b * xr[0])}" x2="${sx(xr[1])}" y2="${sy(al + b * xr[1])}" class="fit"/>`;
     s += `<text x="${W - P.r - 6}" y="${P.t + 16}" text-anchor="end" class="eq">ŷ = ${n2(al)} ${b < 0 ? "−" : "+"} ${n2(Math.abs(b))}x &nbsp; R² = ${n2(a.r2)}</text>`;
@@ -53,7 +53,7 @@
     const xr = nice(Math.min(...xs), Math.max(...xs)), yr = [-m * 1.12, m * 1.12];
     const { sx, sy, g } = frame(xr, yr, "Fitted copper return, %", "Residual, % points", (v) => v + "%", (v) => v);
     const sd = a.residStd;
-    let s = g + `<rect x="${P.l}" width="${W - P.l - P.r}" y="${sy(sd)}" height="${sy(-sd) - sy(sd)}" fill="rgba(46,85,151,.06)"/>`;
+    let s = g + `<rect x="${P.l}" width="${W - P.l - P.r}" y="${sy(sd)}" height="${sy(-sd) - sy(sd)}" fill="rgba(176,97,47,.06)"/>`;
     s += `<line x1="${P.l}" x2="${W - P.r}" y1="${sy(0)}" y2="${sy(0)}" class="fit"/>`;
     s += a.points.map((p) => `<circle cx="${sx(p[3])}" cy="${sy(p[4])}" r="4.5" class="dot ${Math.abs(p[4]) > 2 * sd ? "out" : ""}"><title>${p[0]}: fitted ${n2(p[3])}%, residual ${n2(p[4])}</title></circle>`).join("");
     return svg(s, "Residuals vs fitted values (shaded band = ±1 std. error)");
@@ -68,13 +68,13 @@
     let s = g;
     const step = Math.max(1, Math.round(n / 6));
     rows.forEach((r, i) => { if (i % step === 0) s += `<text x="${sx(i)}" y="${H - P.b + 16}" text-anchor="middle" class="ax">${r[0]}</text>`; });
-    if (opts.ref != null) s += `<line x1="${P.l}" x2="${W - P.r}" y1="${sy(opts.ref)}" y2="${sy(opts.ref)}" stroke="#98a2b3" stroke-dasharray="4 4"/><text x="${W - P.r}" y="${sy(opts.ref) - 5}" text-anchor="end" class="ax">${opts.refLabel || ""}</text>`;
+    if (opts.ref != null) s += `<line x1="${P.l}" x2="${W - P.r}" y1="${sy(opts.ref)}" y2="${sy(opts.ref)}" stroke="#ab9a88" stroke-dasharray="4 4"/><text x="${W - P.r}" y="${sy(opts.ref) - 5}" text-anchor="end" class="ax">${opts.refLabel || ""}</text>`;
     if (opts.bars) {
       const bw = Math.max(2, (W - P.l - P.r) / n - 2);
-      s += `<line x1="${P.l}" x2="${W - P.r}" y1="${sy(0)}" y2="${sy(0)}" stroke="#98a2b3"/>`;
+      s += `<line x1="${P.l}" x2="${W - P.r}" y1="${sy(0)}" y2="${sy(0)}" stroke="#ab9a88"/>`;
       s += rows.map((r, i) => `<rect x="${sx(i) - bw / 2}" width="${bw}" y="${Math.min(sy(0), sy(r[1]))}" height="${Math.abs(sy(r[1]) - sy(0))}" fill="${r[1] >= 0 ? "#1a7f4b" : "#c0392b"}" opacity=".75"><title>${r[0]}: ${n2(r[1])}</title></rect>`).join("");
     } else {
-      s += `<polyline fill="none" stroke="#1f3864" stroke-width="2" points="${rows.map((r, i) => `${sx(i)},${sy(r[1])}`).join(" ")}"/>`;
+      s += `<polyline fill="none" stroke="#6b3418" stroke-width="2" points="${rows.map((r, i) => `${sx(i)},${sy(r[1])}`).join(" ")}"/>`;
       s += rows.map((r, i) => `<circle cx="${sx(i)}" cy="${sy(r[1])}" r="6" fill="transparent"><title>${r[0]}: ${n2(r[1])}</title></circle>`).join("");
     }
     return svg(s, title);
