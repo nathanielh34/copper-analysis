@@ -1,0 +1,73 @@
+{
+  "_about": "Keyword rules for the copper strength index. Score the expected PRICE IMPACT on copper, not the tone of the story: a strike at a Chilean mine is bad news but bullish for copper (less supply). Each rule is a case-insensitive regular expression. A headline's score is the sign of the sum of matched weights: >0 scores +1, <0 scores -1, otherwise 0. Edit freely; the next scheduled run rescores everything. 'relevance': a headline must match this to count at all (keeps out non-copper stories). 'exclude': headlines matching this never count. Manual overrides always count.",
+  "halfLifeDays": 14,
+  "rules": [
+    {
+      "label": "Supply disruption",
+      "weight": 1,
+      "pattern": "\\b(strikes?|walkout|stoppage|blockade\\w*|protests?|force majeure|landslide|flood\\w*|mudslide|accident|collapse\\w*|outage|disrupt\\w*|suspend\\w*|suspension|halt\\w*|shut\\w*|closure|closes|curtail\\w*|evacuat\\w*|sinkhole|earthquake|drought|water shortage)\\b"
+    },
+    {
+      "label": "Output falls / guidance cut",
+      "weight": 1,
+      "pattern": "\\b((output|production|supply|shipments)\\W+(\\w+\\W+){0,3}(falls?|fell|drops?|dropped|declin\\w*|slump\\w*|plung\\w*|tumbl\\w*|sinks?|sank|lowest|shrinks?|down)|(cuts?|lowers?|slashes?|trims?|reduces?) (\\w+ ){0,3}(output|production|copper guidance|production guidance)|lower (ore )?grades?|falling (ore )?grades?|export ban|bans? (\\w+ ){0,2}exports?)\\b"
+    },
+    {
+      "label": "Tight market / deficit",
+      "weight": 1,
+      "pattern": "\\b(deficit|shortage|supply (crunch|squeeze|gap|crisis)|tight\\w* (market|supply|supplies)|squeeze|backwardation|(inventor(y|ies)|stockpiles?|stocks|warehouse \\w+)\\W+(\\w+\\W+){0,3}(fall\\w*|fell|drop\\w*|declin\\w*|shrink\\w*|plung\\w*|slump\\w*|lowest|dwindl\\w*|draw\\w*)|treatment charges? (\\w+ ){0,3}(fall|falls|drop|drops|plunge|plunges|negative|zero|record low)|negative (treatment|tc))\\b"
+    },
+    {
+      "label": "Stimulus / strong demand",
+      "weight": 1,
+      "pattern": "\\b(stimulus|rate cuts?|cuts? (\\w+ ){0,2}(interest )?rates?|easing|pboc (cuts?|eases?)|(imports?|demand|buying|consumption)\\W+(\\w+\\W+){0,3}(ris\\w*|rose|jump\\w*|surg\\w*|soar\\w*|record|climb\\w*|strong\\w*|boom\\w*|rebound\\w*|recover\\w*)|(strong|robust|record|booming|surging) (\\w+ ){0,2}(demand|imports|buying)|factory activity (expands|grows|rebounds)|pmi (expands|rises|beats))\\b"
+    },
+    {
+      "label": "Electrification demand",
+      "weight": 0.5,
+      "pattern": "\\b(electric vehicles?|\\bevs?\\b|power grid|grid (investment|spending|upgrade\\w*)|data cent(er|re)s?|\\bai\\b (demand|boom|build\\w*)|energy transition|renewables?|solar|wind (power|farms?)|electrification)\\b"
+    },
+    {
+      "label": "Weaker dollar",
+      "weight": 1,
+      "pattern": "\\b((dollar|greenback)\\W+(\\w+\\W+){0,2}(weak\\w*|fall\\w*|fell|slid\\w*|slump\\w*|drop\\w*|declin\\w*|retreat\\w*|tumbl\\w*|lower)|weak(er)? dollar|soft(er)? dollar)\\b"
+    },
+    {
+      "label": "Price rises / bullish call",
+      "weight": 1,
+      "pattern": "\\b(copper|metals?|lme|comex|prices?)( (prices?|futures|price))?( \\w+ly)? (ris\\w*|rose|jump\\w*|surg\\w*|soar\\w*|rall\\w*|climb\\w*|gain\\w*|spik\\w*|rebound\\w*|advanc\\w*|extend\\w* gains|firm\\w*|edg\\w* (up|higher)|lift\\w*)\\b|\\b(copper|prices?|futures)\\W+(\\w+\\W+){0,2}(hits?|touch\\w*|reach\\w*|sets?|scal\\w*) (a |an |new )*(record|all[- ]time high|\\w+-(year|month|week) high|highest)|\\b(rais\\w*|lifts?|ups?|hikes?) (\\w+ ){0,3}price (forecast|target|outlook)s?\\b|\\b(bullish|super-?cycle)\\b"
+    },
+    {
+      "label": "New supply / restart",
+      "weight": -1,
+      "pattern": "\\b(new mine|mine (expansion|opens|opening|approval)|expan\\w* (\\w+ ){0,3}(mine|output|production|capacity)|(output|production|supply|shipments)\\W+(\\w+\\W+){0,3}(ris\\w*|rose|jump\\w*|surg\\w*|record|climb\\w*|increas\\w*|grows?|up)|(boosts?|raises?|increases?|ramps? up) (\\w+ ){0,3}(output|production|capacity)|record (output|production)|first (copper|production|concentrate)|new (smelter|capacity))\\b"
+    },
+    {
+      "label": "Disruption ends",
+      "weight": -2,
+      "pattern": "\\b((strike|walkout|blockade|protest|stoppage|shutdown|outage)\\W+(\\w+\\W+){0,3}(ends?|ended|over|lifted|called off|resolved)|end (\\w+ ){0,2}(strike|blockade|stoppage)|(resum\\w*|restart\\w*|reopen\\w*|back online|returns? to (full )?(production|operation)))\\b"
+    },
+    {
+      "label": "Surplus / inventories build",
+      "weight": -1,
+      "pattern": "\\b(surplus|glut|oversuppl\\w*|ample supply|(inventor(y|ies)|stockpiles?|stocks|warehouse \\w+)\\W+(\\w+\\W+){0,3}(ris\\w*|rose|jump\\w*|surg\\w*|swell\\w*|build\\w*|climb\\w*|highest|soar\\w*|pile up)|treatment charges? (\\w+ ){0,3}(rise|rises|jump|jumps|climb|climbs))\\b"
+    },
+    {
+      "label": "Weak demand / slowdown",
+      "weight": -1,
+      "pattern": "\\b(recession|slowdown|(economy|growth|activity|manufacturing|pmi|factories)\\W+(\\w+\\W+){0,2}(contract\\w*|slow\\w*|shrink\\w*)|contraction|deflation|property (crisis|slump|downturn)|evergrande|country garden|(demand|imports?|buying|consumption|factory activity|pmi)\\W+(\\w+\\W+){0,3}(weak\\w*|fall\\w*|fell|drop\\w*|slump\\w*|declin\\w*|slow\\w*|sluggish|soft\\w*|tepid)|weak(er|ening)? (\\w+ ){0,2}demand|trade war|tariff (fears|worries|threat))\\b"
+    },
+    {
+      "label": "Stronger dollar / tighter money",
+      "weight": -1,
+      "pattern": "\\b((dollar|greenback)\\W+(\\w+\\W+){0,2}(strong\\w*|ris\\w*|rose|jump\\w*|surg\\w*|climb\\w*|gain\\w*|firm\\w*|rall\\w*|higher)|strong(er)? dollar|rate hikes?|hikes? (\\w+ ){0,2}rates?|hawkish|higher for longer)\\b"
+    },
+    {
+      "label": "Price falls / bearish call",
+      "weight": -1,
+      "pattern": "\\b(copper|metals?|lme|comex|prices?)( (prices?|futures|price))?( \\w+ly)? (fall\\w*|fell|drop\\w*|slid\\w*|slip\\w*|slump\\w*|tumbl\\w*|plung\\w*|sink\\w*|sank|declin\\w*|eas(e|es|ed|ing)\\b|los\\w*|retreat\\w*|dip\\w*|extend\\w* losses|edg\\w* (down|lower))|\\b(copper|prices?|futures)\\W+(\\w+\\W+){0,2}(hits?|touch\\w*|reach\\w*|sinks? to|falls? to) (a |an |new )*(\\w+-(year|month|week) low|lowest)|\\b(cuts?|lowers?|slashes?|trims?) (\\w+ ){0,3}price (forecast|target|outlook)s?\\b|\\b(bearish|sell-?off)\\b"
+    }
+  ],
+  "relevance": "\\b(copper|cu|lme|comex|codelco|escondida|grasberg|freeport|antofagasta|southern copper|first quantum|cobre panama|ivanhoe|kamoa|zijin|jiangxi copper|anglo american|glencore|bhp|rio tinto|teck|lundin|hudbay|kghm|smelters?|concentrates?|metals?|red metal)\\b",
+  "exclude": "\\b(copper (pipes?|wire theft|thieves|theft|iud|peptides?|bracelets?|sulfate|kettle|mountain|box)|copperhead|copper canyon|coppell|penny|pennies|recipe|hair colou?r|nba|nfl|mlb|nhl)\\b"
+}

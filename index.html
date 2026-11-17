@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Copper Analysis</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <div class="brand">
+        <span class="ticker">Cu</span>
+        <div>
+          <h1>Fools Gold Analysis: Copper</h1>
+          <p class="sub">What drives the price of copper, and can we project it?</p>
+        </div>
+      </div>
+      <nav id="tabs">
+        <a href="#overview">Overview</a>
+        <a href="#watch">Copper Watch</a>
+        <a href="#drivers">Drivers</a>
+        <a href="#index">Strength Index</a>
+        <a href="#projections">Projections</a>
+        <a href="#findings">Findings</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- OVERVIEW -->
+    <section id="overview" class="page">
+      <div class="stats" id="stats"></div>
+
+      <h2>Objective</h2>
+      <p>Identify what drives the price of copper, build projections with several methods (including a news-based strength index), and test whether they beat simple benchmarks such as a random walk and the futures curve.</p>
+
+      <h2>What moves copper</h2>
+      <ul>
+        <li><b>Supply</b>: mine output is concentrated in Chile, Peru, the DRC and China; new mines take 10+ years; strikes, accidents and export policy cause disruptions.</li>
+        <li><b>Demand</b>: China uses about half the world's copper (construction, the power grid, manufacturing); electrification (EVs, renewables, data centers) is the long-term story.</li>
+        <li><b>Macro &amp; financial</b>: the US dollar (copper is priced in dollars), global growth, interest rates and speculative positioning.</li>
+        <li><b>Inventories</b>: LME, COMEX and Shanghai stocks show how tight the physical market is.</li>
+        <li><b>Cost curve</b>: the cash cost of the highest-cost producers acts as a soft floor over the long run.</li>
+      </ul>
+
+      <h2>Methods</h2>
+      <ol>
+        <li><b>Market-implied</b>: the futures curve as the market's own forecast (theory of storage).</li>
+        <li><b>Time series</b>: ARIMA on log prices, compared with a random walk.</li>
+        <li><b>Driver regression</b>: copper returns on the dollar, China activity, rates, inventories and the strength index.</li>
+        <li><b>Monte Carlo</b>: simulated paths from historical return and volatility, baseline and strength-index-adjusted.</li>
+        <li><b>Benchmark</b>: published bank and World Bank forecasts.</li>
+      </ol>
+
+      <h2>Phases</h2>
+      <div class="phases">
+        <div class="phase"><span>1</span><b>Drivers</b><p>Learn the supply, demand, macro and inventory drivers.</p></div>
+        <div class="phase"><span>2</span><b>Data</b><p>Price history plus the dollar, China, rates and inventories.</p></div>
+        <div class="phase"><span>3</span><b>Explore</b><p>Chart history, returns, stationarity, correlations.</p></div>
+        <div class="phase"><span>4</span><b>Index</b><p>Check scoring rules, review past headlines, test lead vs lag.</p></div>
+        <div class="phase"><span>5</span><b>Projections</b><p>Futures curve, ARIMA, regression, Monte Carlo.</p></div>
+        <div class="phase"><span>6</span><b>Evaluate</b><p>Backtest, log projections, regress results vs actuals.</p></div>
+      </div>
+      <p class="note"><b>Backtest rule:</b> use only information available on each date. Hindsight leaks in easily with news-driven prices.</p>
+    </section>
+
+    <!-- COPPER WATCH -->
+    <section id="watch" class="page">
+      <div id="watchEmpty" class="empty-card" hidden>
+        <h2>Market data is on its way</h2>
+        <p class="muted">The price and news feed are fetched by a scheduled job on GitHub every couple of hours on weekdays. Once it has run, this tab fills in automatically.</p>
+      </div>
+      <div id="watchBody">
+        <div class="quote-head">
+          <div>
+            <div class="q-name"><span class="q-sym">HG=F</span> Copper futures <span class="muted">· COMEX · US$ per pound</span></div>
+            <div class="q-price-row"><span id="qPrice" class="q-price">—</span><span id="qChange" class="q-change">—</span></div>
+            <div id="qAsOf" class="muted small">—</div>
+          </div>
+          <div class="signals" id="signals"></div>
+        </div>
+
+        <div class="watch-grid">
+          <div class="watch-main">
+            <div class="chart-card">
+              <div class="chart-toolbar">
+                <div class="seg" id="rangeBtns"></div>
+                <div class="seg" id="typeBtns"></div>
+                <div class="seg" id="overlayBtns"></div>
+              </div>
+              <div id="legend" class="legend"></div>
+              <div id="cmpNote" class="cmp-note" hidden>Comparing % change from the first bar on screen. Moving averages are hidden while comparing.</div>
+              <div id="priceChart" class="pane pane-main"></div>
+              <div class="pane-label">RSI (14) <span id="rsiLegend"></span></div>
+              <div id="rsiChart" class="pane pane-sub"></div>
+            </div>
+
+            <h3 class="sec">Key statistics</h3>
+            <div class="kstats" id="keyStats"></div>
+
+            <div class="range52" id="range52"></div>
+
+            <h3 class="sec">Performance vs. benchmarks</h3>
+            <div class="tablewrap"><table id="perfTable"></table></div>
+          </div>
+
+          <aside class="watch-side">
+            <div class="news-card">
+              <div class="news-head"><h3>Copper headlines</h3><span class="muted small" id="newsUpdated"></span></div>
+              <div class="filters" id="newsFilters"></div>
+              <div id="newsList"></div>
+            </div>
+          </aside>
+        </div>
+        <p class="muted small">Copper price is the continuous front-month COMEX futures contract (HG=F), so the chart can jump slightly when one contract rolls into the next. Prices from Yahoo Finance via yfinance, delayed and refreshed about every 2 hours on weekdays. Headlines from Google News and Mining.com. Charts by <a href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView</a> Lightweight Charts. Not investment advice.</p>
+      </div>
+    </section>
+
+    <!-- DRIVERS -->
+    <section id="drivers" class="page">
+      <h2>Candidate drivers</h2>
+      <p class="muted">Each driver gets the same monthly regression: copper's return on the driver. Start with the broad macro drivers (growth, the dollar, China) so that a later "driver" isn't just the economy moving. Click a driver marked <span class="pill blue">Analysis</span> to open its regression. Analyses refresh automatically with the market data.</p>
+      <div class="filters" id="driverFilters"></div>
+      <div class="tablewrap"><table id="driverTable"></table></div>
+    </section>
+
+    <!-- STRENGTH INDEX -->
+    <section id="index" class="page">
+      <h2>News Strength Index</h2>
+      <p class="muted">Card counting on copper headlines. Every headline is scored by its likely <i>price impact</i>: <b class="pos">+1</b> (bullish for copper, e.g. a mine strike or China stimulus), <b>0</b> or <b class="neg">−1</b> (bearish, e.g. new supply or a stronger dollar), by keyword rules (off-topic stories are ignored), and the scores are added up into a running total that fades over time: each score counts fully on its day and loses half its weight every <b id="siHalf">14</b> days. Scores can be overridden by hand.</p>
+      <div id="siEmpty" class="empty-card" hidden><h2>Collecting headlines…</h2><p class="muted">The index is built by a job on GitHub. It appears here once the first run finishes.</p></div>
+      <div id="siBody">
+        <div class="stats" id="siStats"></div>
+
+        <div class="chart-card">
+          <div class="chart-toolbar">
+            <div class="seg" id="siRange"></div>
+            <div class="seg" id="siMode"></div>
+            <div class="seg" id="siOverlay"></div>
+          </div>
+          <div id="siLegend" class="legend"></div>
+          <div id="siChart" class="pane" style="height:340px"></div>
+          <div class="pane-label">Headlines per week <span class="muted">(click a bar or the chart to open that month's headlines below)</span></div>
+          <div id="siVolChart" class="pane" style="height:90px"></div>
+        </div>
+
+        <h3 class="sec" id="siLogTitle">Headline log</h3>
+        <div class="log-controls">
+          <select id="siMonth"></select>
+          <div class="seg" id="siScoreFilter"></div>
+          <input id="siSearch" type="search" placeholder="Search headlines…">
+          <span class="muted small" id="siCount"></span>
+        </div>
+        <div class="tablewrap"><table id="siTable"></table></div>
+        <div class="muted small" id="siMore"></div>
+
+        <div class="si-two">
+          <div>
+            <h3 class="sec">Does it work? Backtest</h3>
+            <p class="muted small">Monthly regressions of copper returns on the index. "Copper minus S&amp;P 500" removes the general market so the test is about copper-specific moves. "Predict next month" uses only information available at the end of the previous month.</p>
+            <div class="tablewrap"><table id="siBacktest"></table></div>
+            <p class="small"><a href="#drivers" id="siDriverLink">See the full regression panel on the Drivers tab →</a></p>
+          </div>
+          <div>
+            <h3 class="sec">Scoring rules</h3>
+            <p class="muted small">A headline's score is the sign of the sum of the weights of the rules it matches. Edit <a href="https://github.com/nathanielh34/copper-analysis/edit/main/data/scoring_rules.json" target="_blank" rel="noopener">data/scoring_rules.json</a> to change them; everything is rescored on the next run.</p>
+            <div class="tablewrap"><table id="siRules"></table></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="siDialog" class="si-dialog" hidden>
+        <div class="si-dialog-box">
+          <h3>Change this headline's score</h3>
+          <p id="siDlgTitle" class="si-dlg-title"></p>
+          <p class="muted small" id="siDlgAuto"></p>
+          <div class="seg" id="siDlgScore"></div>
+          <label class="small">Your name <input id="siDlgBy" placeholder="e.g. Nathaniel or Will"></label>
+          <label class="small">Why <input id="siDlgNote" placeholder="e.g. this strike was at a smelter, not a mine"></label>
+          <p class="small"><b>To save it:</b> copy the line below, open the overrides file on GitHub, paste it inside <code>"overrides": { }</code> (add a comma if there are other entries), and commit. Or just ask Claude to change it for you.</p>
+          <pre id="siDlgSnippet" class="snippet"></pre>
+          <div class="dlg-actions">
+            <button id="siDlgCopy" class="btn">Copy line</button>
+            <a class="btn" href="https://github.com/nathanielh34/copper-analysis/edit/main/data/score_overrides.json" target="_blank" rel="noopener">Open overrides file ↗</a>
+            <button id="siDlgClose" class="btn ghost">Close</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROJECTIONS -->
+    <section id="projections" class="page">
+      <h2>Projection log</h2>
+      <p class="muted">Log every projection when you make it; fill in <code>actual</code> once the target date passes. Edit <code>data/projections.js</code>.</p>
+      <div class="stats" id="projStats"></div>
+      <div class="tablewrap"><table id="projTable"></table></div>
+    </section>
+
+    <!-- FINDINGS -->
+    <section id="findings" class="page">
+      <h2>Findings</h2>
+      <p class="muted">A running journal of what you've learned. Edit <code>data/findings.js</code>.</p>
+      <div class="filters" id="findingFilters"></div>
+      <div id="findingList"></div>
+    </section>
+  </main>
+
+  <footer class="wrap muted">Part of the Fools Gold Analysis project · Not investment advice</footer>
+
+  <script src="data/drivers.js"></script>
+  <script src="data/strength.js"></script>
+  <script src="data/projections.js"></script>
+  <script src="data/findings.js"></script>
+  <script src="data/results.js"></script>
+  <script src="data/market.js"></script>
+  <script src="assets/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="data/drivers_results.js"></script>
+  <script src="assets/drivers.js"></script>
+  <script src="assets/app.js"></script>
+  <script src="assets/watch.js"></script>
+  <script src="assets/strength.js"></script>
+</body>
+</html>
