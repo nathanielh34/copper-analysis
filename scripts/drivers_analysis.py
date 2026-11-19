@@ -10,6 +10,7 @@ Return drivers (one per entry in BENCHMARKS):
 Level drivers (RATES): 10-year Treasury yield and the news strength index,
   copper return vs the change in the level.
 Plus diagnostics, residuals and rolling betas for each time frame.
+Supply drivers (mine-disruption event study, treatment charges) come from supply_analysis.py.
 
 ETF prices are dividend-adjusted. Writes data/drivers_results.js.
 Run locally with:  pip install yfinance pandas statsmodels && python scripts/drivers_analysis.py
@@ -264,6 +265,16 @@ def main():
         name = rate["driver"]
         try:
             out["drivers"][name] = rate_driver(px, rate)
+            print(f"{name} driver OK:", out["drivers"][name]["result"])
+        except Exception as e:
+            print(f"{name} driver failed:", e)
+            if name in prev:
+                out["drivers"][name] = prev[name]
+    # Supply drivers: mine-disruption event study and treatment charges (scripts/supply_analysis.py)
+    import supply_analysis
+    for name, fn in [("Mine disruptions", supply_analysis.event_study), ("Treatment charges", supply_analysis.treatment_charges)]:
+        try:
+            out["drivers"][name] = fn(px)
             print(f"{name} driver OK:", out["drivers"][name]["result"])
         except Exception as e:
             print(f"{name} driver failed:", e)

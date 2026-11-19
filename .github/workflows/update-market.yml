@@ -11,6 +11,9 @@ on:
     paths:
       - scripts/fetch_market.py
       - scripts/drivers_analysis.py
+      - scripts/supply_analysis.py
+      - data/mine_disruptions.json
+      - data/treatment_charges.json
       - scripts/strength_index.py
       - data/scoring_rules.json
       - data/score_overrides.json

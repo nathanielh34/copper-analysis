@@ -107,6 +107,163 @@
   }
 
   // ---------------- detail panel ----------------
+  // ---------------- supply drivers (event study, treatment charges) ----------------
+  const pct = (v, d = 2) => (v == null ? "—" : (v > 0 ? "+" : "") + Number(v).toFixed(d) + "%");
+  const sgn = (v, d = 2) => (v == null ? "—" : (v > 0 ? "+" : "") + Number(v).toFixed(d));
+  const tfNote = `<p class="small note">This driver isn't a return regression, so the time-frame switch above doesn't change it.</p>`;
+  const dcard = (l, v, sub = "") => `<div class="dstat"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  const money = (v) => (v == null ? "—" : (v < 0 ? "−$" : "$") + Math.abs(v).toFixed(2));
+  const dnum = (s) => new Date(s + "T00:00:00Z").getTime();
+
+  function eventDetail(a) {
+    const S = a.summary, s0 = S.d0 || {}, s5 = S.d5 || {}, s20 = S.d20 || {}, sp = S.pre || {};
+    const sigTxt = (s) => (s.p == null ? "" : s.p < 0.05 ? "statistically significant" : "not statistically significant");
+    // average path + each event's path
+    const ks = a.avgPath.map((p) => p[0]);
+    const all = a.events.flatMap((e) => e.path.filter((v) => v != null));
+    const m = Math.max(4, ...all.map(Math.abs)) * 1.05;
+    const fr = frame([ks[0], ks[ks.length - 1]], [-m, m], "Trading days from the news (day 0)", "Cumulative abnormal return, %", (v) => v, (v) => v + "%");
+    let s = fr.g + `<line x1="${fr.sx(0)}" x2="${fr.sx(0)}" y1="${P.t}" y2="${H - P.b}" stroke="#d8c8b6" stroke-dasharray="4 4"/>`;
+    s += `<line x1="${P.l}" x2="${W - P.r}" y1="${fr.sy(0)}" y2="${fr.sy(0)}" stroke="#ab9a88"/>`;
+    a.events.forEach((e) => {
+      const pts = e.path.map((v, i) => (v == null ? null : `${fr.sx(ks[i])},${fr.sy(v)}`)).filter(Boolean).join(" ");
+      s += `<polyline fill="none" stroke="#b0612f" stroke-opacity=".22" stroke-width="1.2" points="${pts}"><title>${esc(e.mine)} ${e.date}</title></polyline>`;
+    });
+    s += `<polyline fill="none" stroke="#6b3418" stroke-width="3" points="${a.avgPath.map((p) => `${fr.sx(p[0])},${fr.sy(p[1])}`).join(" ")}"/>`;
+    s += a.avgPath.map((p) => `<circle cx="${fr.sx(p[0])}" cy="${fr.sy(p[1])}" r="5" fill="transparent"><title>Day ${p[0]}: average ${pct(p[1])} (${p[2]} events)</title></circle>`).join("");
+    const pathPlot = svg(s, "Copper's abnormal return around each disruption (thin) and the average (thick)");
+
+    // size vs 5-day reaction
+    const ev5 = a.events.filter((e) => e.d5 != null);
+    const xs = ev5.map((e) => e.share), ys = ev5.map((e) => e.d5);
+    const xr = [0, Math.max(...xs) * 1.15], ym = Math.max(...ys.map(Math.abs)) * 1.2;
+    const f2 = frame(xr, [-ym, ym], "Mine's share of world mine supply, %", "Abnormal return, days 0 to +5", (v) => v + "%", (v) => v + "%");
+    let s2 = f2.g + `<line x1="${P.l}" x2="${W - P.r}" y1="${f2.sy(0)}" y2="${f2.sy(0)}" stroke="#ab9a88"/>`;
+    s2 += ev5.map((e) => `<circle cx="${f2.sx(e.share)}" cy="${f2.sy(e.d5)}" r="5" class="dot"><title>${esc(e.mine)} (${e.date}): ${pct(e.d5)}</title></circle><text x="${f2.sx(e.share) + 7}" y="${f2.sy(e.d5) + 4}" class="ax">${esc(e.mine)}</text>`).join("");
+    const sr = a.sizeReg;
+    if (sr) s2 += `<line x1="${f2.sx(xr[0])}" y1="${f2.sy(sr.alpha + sr.beta * xr[0])}" x2="${f2.sx(xr[1])}" y2="${f2.sy(sr.alpha + sr.beta * xr[1])}" class="fit"/><text x="${W - P.r - 6}" y="${P.t + 16}" text-anchor="end" class="eq">slope ${sgn(sr.beta)} pp per 1% of supply · p = ${pFmt(sr.p)}</text>`;
+    const sizePlot = svg(s2, "Do bigger disruptions move copper more?");
+
+    const winRows = ["pre", "d0", "d5", "d20"].map((k) => S[k]).filter((v) => v && v.n).map((v) =>
+      `<tr><td>${esc(v.label)}</td><td class="num">${v.n}</td><td class="num"><b>${pct(v.mean)}</b></td><td class="num">${pct(v.median)}</td><td class="num">${pct(v.rawMean)}</td><td class="num">${Math.round(v.posShare * 100)}%</td><td class="num">${n2(v.t)}</td><td class="num">${pFmt(v.p)}</td><td class="num">${pFmt(v.pPlacebo)}</td></tr>`).join("");
+    const evRows = a.events.slice().reverse().map((e) => `<tr><td>${esc(e.date)}</td><td><b>${esc(e.mine)}</b><br><span class="muted small">${esc(e.country)} · ${esc(e.type)}</span></td><td class="num">${n2(e.share, 1)}%</td><td class="num">${pct(e.d0)}</td><td class="num">${pct(e.d5)}</td><td class="num">${e.d20 == null ? '<span class="muted small">not yet</span>' : pct(e.d20)}</td><td class="num">${pct(e.d5Raw)}</td><td class="small">${esc(e.what)} <a href="${esc(e.source)}" target="_blank" rel="noopener">source</a></td></tr>`).join("");
+
+    return `<div class="dpanel">
+      ${tfNote}
+      <div class="dhead"><div><h3>${esc(a.title)}</h3><p class="muted">${esc(a.question)}</p></div>
+        <div class="muted small">${a.events.length} events · event study<br>${esc(a.method)}</div></div>
+      <div class="dstats">
+        ${dcard("Day 0", pct(s0.mean), `avg. abnormal return · p = ${pFmt(s0.p)}`)}
+        ${dcard("Days 0 to +5", pct(s5.mean), `p = ${pFmt(s5.p)} · placebo p = ${pFmt(s5.pPlacebo)}`)}
+        ${dcard("Days 0 to +20", pct(s20.mean), `p = ${pFmt(s20.p)} · n = ${s20.n || 0}`)}
+        ${dcard("Copper up (0 to +5)", s5.posShare == null ? "—" : Math.round(s5.posShare * 100) + "%", `of ${s5.n} events`)}
+        ${dcard("Days −5 to −1", pct(sp.mean), "before the news")}
+        ${dcard("Size effect", sr ? sgn(sr.beta) + " pp" : "—", sr ? `per 1% of world supply · p = ${pFmt(sr.p)}` : "")}
+      </div>
+      <ul class="interp">
+        <li><b>Day 0 ${pct(s0.mean)}:</b> on the day the news broke, copper did ${(s0.mean || 0) >= 0 ? "better" : "worse"} than the stock market predicted, by ${n2(Math.abs(s0.mean || 0))} percentage points on average (${sigTxt(s0)}, p = ${pFmt(s0.p)}).</li>
+        <li><b>First week ${pct(s5.mean)}:</b> over days 0 to +5 the average abnormal return was ${pct(s5.mean)}, with copper up in ${Math.round((s5.posShare || 0) * 100)}% of events. This is ${sigTxt(s5)}. The placebo test (the same number of random days drawn 5,000 times) gives p = ${pFmt(s5.pPlacebo)}.</li>
+        <li><b>First month ${pct(s20.mean)}:</b> ${s20.mean != null && s5.mean != null && Math.abs(s20.mean) < Math.abs(s5.mean) ? "the effect fades over the following weeks, which fits a short-lived price reaction rather than a lasting shift." : "a month out the effect is about as big or bigger, though other news piles up over 20 days, so this window is noisier."}</li>
+        <li><b>Before the news ${pct(sp.mean)}:</b> ${Math.abs(sp.mean || 0) > Math.abs(s0.mean || 0) ? "copper moved noticeably in the days before, so some events (strike votes, failed talks) were partly priced in early." : "little movement beforehand, so most of these disruptions were genuine surprises."}</li>
+        <li><b>Keep in mind:</b> with ${a.events.length} events, one big market day can swing the average. El Teniente (Aug 1, 2025) came right after copper's tariff crash, and the two Grasberg dates overlap. Strikes are often announced in advance, while accidents are true surprises.</li>
+      </ul>
+      <div class="plots">${pathPlot}${sizePlot}</div>
+      <h4>Average reaction by window</h4>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Window</th><th class="num">Events</th><th class="num">Avg. abnormal</th><th class="num">Median</th><th class="num">Avg. raw return</th><th class="num">Copper up</th><th class="num">t</th><th class="num">p (t-test)</th><th class="num">p (placebo)</th></tr></thead>
+        <tbody>${winRows}</tbody></table></div>
+      <h4>The events</h4>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Date</th><th>Mine</th><th class="num">Share of supply</th><th class="num">Day 0</th><th class="num">Days 0 to +5</th><th class="num">Days 0 to +20</th><th class="num">Raw 0 to +5</th><th>What happened</th></tr></thead>
+        <tbody>${evRows}</tbody></table></div>
+      <p class="muted small">Abnormal returns are shown; "raw" is copper's actual return. Add events to <a href="https://github.com/nathanielh34/copper-analysis/edit/main/data/mine_disruptions.json" target="_blank" rel="noopener">data/mine_disruptions.json</a> and they're included on the next data run.</p>
+      <div class="next"><h4>What this suggests adding next</h4><ul>
+        <li><b>Split by type:</b> compare surprise accidents (Grasberg, El Teniente, Kamoa-Kakula) with announced strikes. Surprises should move the price more.</li>
+        <li><b>Link to the strength index:</b> these dates should show up as "Supply disruption" headlines. Check they're scored +1.</li>
+        <li><b>Add disruption ends</b> (strike settled, mine restarts) as a separate set. Copper should dip when supply comes back.</li>
+      </ul></div>
+    </div>`;
+  }
+
+  function tcDetail(a) {
+    const sr = a.spotReg, br = a.bmReg, sh = a.shortReg;
+    // TC over time: spot points and annual benchmark steps
+    const t0 = dnum(a.spot[0].date) - 400 * 864e5, t1 = dnum(a.spot[a.spot.length - 1].date) + 30 * 864e5;
+    const bmIn = a.benchmark.filter((b) => dnum(b.year + "-12-31") >= t0);
+    const tcs = [...a.spot.map((p) => p.tc), ...bmIn.map((b) => b.tc)];
+    const yr = nice(Math.min(...tcs), Math.max(...tcs));
+    const f1 = frame([t0, t1], yr, null, "$ per tonne", null, (v) => "$" + v);
+    let s = f1.g + `<line x1="${P.l}" x2="${W - P.r}" y1="${f1.sy(0)}" y2="${f1.sy(0)}" stroke="#ab9a88"/>`;
+    for (let y = new Date(t0).getUTCFullYear() + 1; dnum(y + "-01-01") < t1; y++) s += `<text x="${f1.sx(dnum(y + "-01-01"))}" y="${H - P.b + 16}" text-anchor="middle" class="ax">${y}</text>`;
+    bmIn.forEach((b) => {
+      const x0 = f1.sx(Math.max(t0, dnum(b.year + "-01-01"))), x1 = f1.sx(Math.min(t1, dnum(b.year + "-12-31")));
+      s += `<line x1="${x0}" x2="${x1}" y1="${f1.sy(b.tc)}" y2="${f1.sy(b.tc)}" stroke="#1f6f8b" stroke-width="2.5" stroke-dasharray="6 3"><title>${b.year} benchmark: $${b.tc}</title></line>`;
+    });
+    s += `<polyline fill="none" stroke="#6b3418" stroke-width="2" points="${a.spot.map((p) => `${f1.sx(dnum(p.date))},${f1.sy(p.tc)}`).join(" ")}"/>`;
+    s += a.spot.map((p) => `<circle cx="${f1.sx(dnum(p.date))}" cy="${f1.sy(p.tc)}" r="3.5" fill="#6b3418"><title>${p.date}: spot TC $${n2(p.tc)}/t, copper $${n2(p.copper)}/lb</title></circle>`).join("");
+    s += `<text x="${W - P.r - 4}" y="${P.t + 14}" text-anchor="end" class="ax">── spot (Fastmarkets) &nbsp; - - annual benchmark</text>`;
+    const tcPlot = svg(s, "Copper concentrate treatment charges");
+
+    // copper price vs TC level
+    const cx = a.spot.map((p) => p.tc), cy = a.spot.map((p) => p.copper);
+    const f3 = frame(nice(Math.min(...cx), Math.max(...cx)), nice(Math.min(...cy), Math.max(...cy)), "Spot TC, $ per tonne", "Copper, $ per lb", (v) => "$" + v, (v) => "$" + v);
+    let s3 = f3.g + a.spot.map((p) => `<circle cx="${f3.sx(p.tc)}" cy="${f3.sy(p.copper)}" r="4.5" class="dot"><title>${p.date}: TC $${n2(p.tc)}, copper $${n2(p.copper)}</title></circle>`).join("");
+    s3 += `<text x="${W - P.r - 6}" y="${P.t + 16}" text-anchor="end" class="eq">correlation ${sgn(a.levelCorr)}</text>`;
+    const levelPlot = svg(s3, "Copper price vs treatment charge level");
+
+    // regression: copper return vs TC change between readings
+    const px_ = a.pairs.map((p) => p.dTc), py_ = a.pairs.map((p) => p.ret);
+    const xr2 = nice(Math.min(...px_), Math.max(...px_)), yr2 = nice(Math.min(...py_), Math.max(...py_));
+    const f2 = frame(xr2, yr2, "Change in spot TC between readings, $/t", "Copper return over the same dates, %", (v) => v, (v) => v + "%");
+    let s2 = f2.g;
+    if (xr2[0] < 0 && xr2[1] > 0) s2 += `<line x1="${f2.sx(0)}" x2="${f2.sx(0)}" y1="${P.t}" y2="${H - P.b}" stroke="#d8c8b6"/>`;
+    if (yr2[0] < 0 && yr2[1] > 0) s2 += `<line x1="${P.l}" x2="${W - P.r}" y1="${f2.sy(0)}" y2="${f2.sy(0)}" stroke="#d8c8b6"/>`;
+    s2 += a.pairs.map((p) => `<circle cx="${f2.sx(p.dTc)}" cy="${f2.sy(p.ret)}" r="${p.days > 45 ? 6 : 4}" class="dot ${p.days > 45 ? "out" : ""}"><title>${p.from} → ${p.to} (${p.days} days): TC ${sgn(p.dTc)}, copper ${pct(p.ret)}</title></circle>`).join("");
+    s2 += `<line x1="${f2.sx(xr2[0])}" y1="${f2.sy(sr.alpha + sr.beta * xr2[0])}" x2="${f2.sx(xr2[1])}" y2="${f2.sy(sr.alpha + sr.beta * xr2[1])}" class="fit"/>`;
+    s2 += `<text x="${W - P.r - 6}" y="${P.t + 16}" text-anchor="end" class="eq">ŷ = ${n2(sr.alpha)} ${sr.beta < 0 ? "−" : "+"} ${n2(Math.abs(sr.beta), 3)}x &nbsp; R² = ${n2(sr.r2)}</text>`;
+    const regPlot = svg(s2, "Regression: copper return vs change in spot TC (red = gap over 45 days)");
+
+    // benchmark years
+    const yrsRows = a.years.map((y) => `<tr><td>${y.year}${y.ytd ? " <span class='muted small'>(to date)</span>" : ""}</td><td class="num">$${n2(y.tc)}</td><td class="num">${sgn(y.dTc)}</td><td class="num">${pct(y.ret, 1)}</td><td class="num">$${n2(y.avgPrice)}</td></tr>`).join("");
+    const regRow = (label, x) => x ? `<tr><td>${label}</td><td class="num">${x.n}</td><td class="num">${n2(x.beta, 4)}</td><td class="num">${n2(x.ciLow, 3)} to ${n2(x.ciHigh, 3)}</td><td class="num">${n2(x.r2, 3)}</td><td class="num">${n2(x.corr, 3)}</td><td class="num">${pFmt(x.p)}</td><td>${x.p < 0.05 ? '<span class="pill good">Significant</span>' : '<span class="pill bad">Not significant</span>'}</td></tr>` : "";
+    const first = a.spot[0].date, last = a.spot[a.spot.length - 1].date;
+
+    return `<div class="dpanel">
+      ${tfNote}
+      <div class="dhead"><div><h3>${esc(a.title)}</h3><p class="muted">${esc(a.question)}</p></div>
+        <div class="muted small">${a.spot.length} spot readings, ${esc(first)} to ${esc(last)} · ${a.benchmark.length} annual benchmarks<br>${esc(a.method)}</div></div>
+      <div class="dstats">
+        ${dcard("Spot TC now", money(a.spot[a.spot.length - 1].tc), "per tonne (negative = smelters pay miners)")}
+        ${dcard("TC vs copper price", sgn(a.levelCorr), "correlation of levels")}
+        ${dcard("Spot sensitivity", sgn(sr.beta * 10, 2) + "%", `copper per +$10/t TC · p = ${pFmt(sr.p)}`)}
+        ${dcard("Spot R²", n2(sr.r2), `n = ${sr.n} intervals`)}
+        ${dcard("Benchmark sensitivity", sgn(br.beta * 10, 2) + "%", `copper's year per +$10/t · p = ${pFmt(br.p)}`)}
+        ${dcard(`${a.benchmark[a.benchmark.length - 1].year} benchmark`, money(a.benchmark[a.benchmark.length - 1].tc), "annual contract TC")}
+      </div>
+      <ul class="interp">
+        <li><b>${a.levelCorr < 0 ? "Levels move opposite, as expected" : "Levels don't move opposite"}:</b> the correlation between the spot TC and the copper price is ${sgn(a.levelCorr)}. ${a.levelCorr < -0.5 ? "As concentrate got scarcer and TCs collapsed into negative territory, copper climbed to records. That's the supply-tightness story." : a.levelCorr < 0 ? "Lower TCs went with higher copper prices, but loosely." : "Surprisingly, TCs and copper did not move opposite in this sample."}</li>
+        <li><b>Changes are a weaker signal:</b> regressing copper's return on the change in the TC between readings gives ${sgn(sr.beta * 10, 2)}% per +$10/t (R² ${n2(sr.r2)}, p = ${pFmt(sr.p)}). ${sr.p < 0.05 ? "That's significant: when TCs fell between readings, copper tended to rise." : "That's not significant: over weeks or months, TC changes don't line up reliably with copper moves. Both trend together over years, but short-term copper is driven by other things (the dollar, stocks, tariffs)."}${sh ? ` Using only gaps of 45 days or less (n = ${sh.n}): ${sgn(sh.beta * 10, 2)}% per +$10/t, p = ${pFmt(sh.p)}.` : ""}</li>
+        <li><b>Annual benchmark:</b> across ${br.n} years, copper's calendar-year return vs the change in the benchmark gives ${sgn(br.beta * 10, 2)}% per +$10/t (p = ${pFmt(br.p)}). With only ${br.n} data points, this can't be significant unless the link is very strong.</li>
+        <li><b>Keep in mind:</b> TCs and copper prices are both results of the same thing (how tight mine supply is), so this shows they move together, not that one causes the other. The spot series has gaps (nothing before Aug 2023, and almost nothing from Oct 2024 to Sep 2025), and Fastmarkets changed the index weighting on Sep 4, 2026.</li>
+      </ul>
+      <div class="plots">${tcPlot}${levelPlot}</div>
+      <div class="plots">${regPlot}<div>
+        <h4>Annual benchmark vs copper</h4>
+        <div class="tablewrap"><table><thead><tr><th>Year</th><th class="num">Benchmark TC</th><th class="num">Change</th><th class="num">Copper return</th><th class="num">Avg. price</th></tr></thead><tbody>${yrsRows}</tbody></table></div>
+      </div></div>
+      <h4>Regression output</h4>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Model</th><th class="num">n</th><th class="num">Slope (% per $1/t)</th><th class="num">95% CI</th><th class="num">R²</th><th class="num">Correlation</th><th class="num">p-value</th><th></th></tr></thead>
+        <tbody>${regRow("Spot: all intervals", sr)}${regRow("Spot: gaps ≤ 45 days", sh)}${regRow("Annual benchmark", br)}</tbody></table></div>
+      <p class="muted small">Spot values are the Fastmarkets copper concentrates TC index, cif Asia Pacific, as quoted in Fastmarkets articles. Add new readings to <a href="https://github.com/nathanielh34/copper-analysis/edit/main/data/treatment_charges.json" target="_blank" rel="noopener">data/treatment_charges.json</a> to fill the gaps.</p>
+      <div class="next"><h4>What this suggests adding next</h4><ul>
+        <li><b>Fill the gaps:</b> a full weekly TC series (Fastmarkets, SMM or Platts) would allow a proper monthly regression alongside the other drivers.</li>
+        <li><b>Lead-lag test:</b> check whether TC changes <i>predict</i> next month's copper return. Concentrate tightness shows up at smelters before it reaches refined metal.</li>
+        <li><b>Combine with disruptions:</b> the big TC drops followed Cobre Panama (Nov 2023) and Grasberg (Sep 2025). Both drivers measure the same mine-supply squeeze.</li>
+      </ul></div>
+    </div>`;
+  }
+
   function averageDetail(a) {
     const v = averaged(a), isRate = (a.kind === "rate" || a.kind === "level"), bn = benchName(a);
     const card = (l, val, sub = "") => `<div class="dstat"><div class="l">${l}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`;
@@ -166,6 +323,8 @@
   }
 
   function detail(a) {
+    if (a.kind === "event") return eventDetail(a);
+    if (a.kind === "tc") return tcDetail(a);
     if (TF === "Average" && a.frames) return averageDetail(a);
     a = pick(a);
     const b = a.coef.beta, al = a.coef.alpha, bn = benchName(a);
