@@ -4,7 +4,7 @@ Driver analyses for the Drivers tab (runs on GitHub with the market-data job).
 Copper = COMEX copper futures, continuous front month (Yahoo ticker HG=F).
 
 Return drivers (one per entry in BENCHMARKS):
-  - S&P 500 (SPY), AI stocks (AIQ), China large caps (FXI), US dollar index (DX-Y.NYB), crude oil (CL=F)
+  - S&P 500 (SPY), AI stocks (AIQ), semiconductors (SMH), China large caps (FXI), US dollar index (DX-Y.NYB), crude oil (CL=F)
   - 5-year monthly beta of copper vs the driver, 60 completed months
   - Linear regression  copper_return = alpha + beta * driver_return + error
 Level drivers (RATES): 10-year Treasury yield and the news strength index,
@@ -91,6 +91,8 @@ BENCHMARKS = [
      "question": "How much does copper move with the overall stock market (a proxy for global growth)?"},
     {"driver": "AI stocks", "ticker": "AIQ", "short": "AI stocks", "long": "AIQ (Global X Artificial Intelligence & Technology ETF)",
      "question": "AI data centers need a lot of copper (power, cooling, grid links). Does copper move with AI stocks?"},
+    {"driver": "Semiconductor stocks", "ticker": "SMH", "short": "semiconductors", "long": "SMH (VanEck Semiconductor ETF)",
+     "question": "Chipmakers like Nvidia are the most direct read on AI data-center spending. Does copper move with semiconductor stocks?"},
     {"driver": "China stocks", "ticker": "FXI", "short": "China large caps", "long": "FXI (iShares China Large-Cap ETF)",
      "question": "China uses about half the world's copper. Does copper move with Chinese stocks?"},
     {"driver": "US dollar", "ticker": "DX-Y.NYB", "short": "US dollar index", "long": "the US dollar index (DXY)",
