@@ -353,7 +353,7 @@
     if (isRate) {
       const step = a.step ?? 0.25, unit = a.unit || "pp", what = a.short2 || "10-year yield";
       const q = b.est * step;
-      interp[0] = `<b>Sensitivity ${n2(b.est)}:</b> over ${esc(a.period)}, for each 1 ${esc(a.unitLong === "percentage point" ? "percentage point (100 basis points)" : a.unitLong || "percentage point (100 basis points)")} rise in the ${esc(what)} in a ${per}, copper returned about <b>${n2(Math.abs(b.est))}%</b> ${b.est >= 0 ? "more" : "less"} on average. A +${step} ${unit}${step > 1 ? "s" : ""} ${per} works out to about ${n2(q)}%. ` +
+      interp[0] = `<b>Sensitivity ${n2(b.est)}:</b> over ${esc(a.period)}, for each 1 ${esc(a.unitLong === "percentage point" ? "percentage point (100 basis points)" : a.unitLong || "percentage point (100 basis points)")} rise in the ${esc(what)} in a ${per}, copper returned about <b>${n2(Math.abs(b.est))}%</b> ${b.est >= 0 ? "more" : "less"} on average. A +${step}${unit === "%" ? "%" : " " + unit + (step > 1 ? "s" : "")} ${per} works out to about ${n2(q)}%. ` +
         (b.p < 0.05 ? `The 95% range (${n2(b.ciLow)} to ${n2(b.ciHigh)}) excludes zero, so the effect is statistically significant.` : `The 95% range (${n2(b.ciLow)} to ${n2(b.ciHigh)}) includes zero, so we can't rule out that rates have no effect.`);
       interp[1] = `<b>R² ${n2(a.r2)}:</b> changes in the ${esc(what)} explain about <b>${Math.round(a.r2 * 100)}%</b> of copper's ${per}-to-${per} moves on their own.`;
       interp[3] = `<b>Intercept ${n2(al.est)}% per ${per}:</b> copper's average ${adj} return in a ${per} when the ${esc(what)} didn't change${al.p < 0.05 ? " (statistically significant)." : ` (not significant, p = ${pFmt(al.p)}). Unlike alpha in the stock regressions, this isn't a measure of outperformance.`}`;
@@ -372,7 +372,7 @@
           ${card("Correlation", n2(a.corr), `Copper vs ${bn}`)}
           ${card(isRate ? `Intercept (${adj})` : `Alpha (${adj})`, n2(al.est) + "%", `p = ${pFmt(al.p)}`)}
           ${card(isRate ? "Sensitivity p-value" : "Beta p-value", pFmt(b.p), isRate ? "H₀: no effect" : "H₀: beta = 0")}
-          ${isRate ? card(a.levelLabel || "10Y yield now", n2(a.yieldNow) + (a.levelSuffix ?? "%"), "latest close") : card("Beta ≠ 1 test", `p = ${pFmt(a.betaVsOne.p)}`, "H₀: beta = 1")}
+          ${isRate ? card(a.levelLabel || "10Y yield now", (a.levelDigits === 0 ? Math.round(a.yieldNow).toLocaleString("en-US") : n2(a.yieldNow, a.levelDigits ?? 2)) + (a.levelSuffix ?? "%"), "latest") : card("Beta ≠ 1 test", `p = ${pFmt(a.betaVsOne.p)}`, "H₀: beta = 1")}
         </div>
         <div class="equation">Copper return = <b>${n2(al.est, 3)}</b> ${b.est < 0 ? "−" : "+"} <b>${n2(Math.abs(b.est), 3)}</b> × ${isRate ? `change in ${esc(a.short2 || "10Y yield")} (${esc(a.unit || "pp")})` : bn + " return"} + ε</div>
         <ul class="interp">${interp.map((t) => `<li>${t}</li>`).join("")}</ul>

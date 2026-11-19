@@ -73,7 +73,8 @@ def regress(y, x):
 
 def load_prices():
     import yfinance as yf
-    tickers = [ASSET] + [b["ticker"] for b in BENCHMARKS + RATES if b["ticker"] != "STRENGTH"]
+    local = {"STRENGTH", "LME_STOCKS", "MM_NET"}  # series built from our own data files, not Yahoo
+    tickers = [ASSET] + [b["ticker"] for b in BENCHMARKS + RATES if b["ticker"] not in local]
     px = yf.download(tickers, start="2005-01-01", interval="1d", auto_adjust=True, progress=False)["Close"]
     px = px.rename(columns={ASSET: "COPPER"})
     # Our own news strength index (built by scripts/strength_index.py), aligned to trading days
@@ -83,6 +84,18 @@ def load_prices():
         if px.index.tz is not None:
             si.index = si.index.tz_localize(px.index.tz)
         px["STRENGTH"] = si.reindex(px.index, method="ffill")
+    # LME copper stocks (tonnes) and CFTC managed-money net long (% of open interest),
+    # from scripts/fetch_supply_data.py, carried forward onto trading days
+    def add(col, csv, fn):
+        if not csv.exists():
+            return
+        d = pd.read_csv(csv, parse_dates=["date"]).set_index("date").sort_index()
+        ser = fn(d)
+        if px.index.tz is not None:
+            ser.index = ser.index.tz_localize(px.index.tz)
+        px[col] = ser.reindex(px.index.union(ser.index)).ffill().reindex(px.index)
+    add("LME_STOCKS", ROOT / "data" / "lme_stocks.csv", lambda d: d["stocks"])
+    add("MM_NET", ROOT / "data" / "cftc_copper.csv", lambda d: (d["mm_long"] - d["mm_short"]) / d["oi"] * 100)
     return px
 
 
@@ -192,6 +205,24 @@ RATES = [
      "next": ["<b>Control for growth.</b> Run copper on the S&amp;P 500 <i>and</i> yield changes together. If the yield coefficient stays significant, rates matter for copper beyond their link to the economy.",
               "<b>Add the dollar:</b> rate moves often move the dollar too. Put both in one regression to see which one copper actually responds to.",
               "<b>Real vs nominal:</b> split the 10-year yield into inflation expectations and real yield (TIPS). Copper is often treated as an inflation hedge, so the inflation part may matter more."]},
+    {"driver": "Exchange inventories", "ticker": "LME_STOCKS", "short": "LME copper stocks", "long": "LME copper warehouse stocks",
+     "question": "Copper in exchange warehouses is the market's buffer. Does copper fall when stocks build and rise when they're drawn down?",
+     "unit": "%", "unitLong": "percent", "step": 10, "levelSuffix": " t", "levelDigits": 0, "pct": True,
+     "xLabel": "Change in LME copper stocks, %", "short2": "LME stocks",
+     "levelLabel": "LME stocks now", "sensLabel": "Stock sensitivity",
+     "caveat": "Since early 2025 the threat of US tariffs pulled huge amounts of copper into COMEX warehouses in the US and out of the LME, so LME stocks partly reflect where metal is stored, not how much exists. A full picture adds COMEX and Shanghai (SHFE) stocks. Stocks are also a result of prices (high prices pull metal out of warehouses), so this shows they move together, not which causes which.",
+     "next": ["<b>Add COMEX and SHFE stocks</b> to get total visible inventory, so metal moving between exchanges doesn't look like a draw or a build.",
+              "<b>Days of consumption:</b> divide stocks by world demand. 200,000 t meant more in 2010 than it does today.",
+              "<b>Lead-lag test:</b> do stock draws <i>predict</i> next month's copper return, or just move with it?"]},
+    {"driver": "Speculative positioning", "ticker": "MM_NET", "short": "managed-money net long", "long": "managed-money net long position in COMEX copper (CFTC)",
+     "question": "Do hedge funds and other speculators drive copper? Does copper rise when they add to net long positions?",
+     "unit": "pp", "unitLong": "percentage point of open interest", "step": 5, "levelSuffix": "% of OI", "levelDigits": 1,
+     "xLabel": "Change in managed-money net long, % of open interest", "short2": "speculator net long",
+     "levelLabel": "Net long now", "sensLabel": "Positioning sensitivity",
+     "caveat": "Funds buy when prices are rising (trend following), so a strong same-period link is expected even if speculators don't cause the moves. The CFTC report shows positions as of Tuesday and is published Friday. This uses COMEX only; LME positioning (Commitments of Traders on the LME) is separate.",
+     "next": ["<b>Does positioning predict?</b> Regress next week's or month's copper return on this week's change in positioning. That separates trend-following from price impact.",
+              "<b>Crowding:</b> test whether extreme net long or net short levels (e.g. top or bottom 10%) come before reversals.",
+              "<b>Add producers:</b> compare managed money with producer/merchant hedging (also in data/cftc_copper.csv)."]},
     {"driver": "Strength Index", "ticker": "STRENGTH", "short": "Strength Index", "long": "the news strength index (this site)",
      "question": "Do months with more bullish copper headlines line up with better copper returns?",
      "unit": "pt", "unitLong": "index point", "step": None, "levelSuffix": "",
@@ -210,12 +241,13 @@ def rate_driver(px_all, rate):
     frames = {}
     for fr in FRAMES:
         c = period_closes(px, fr["freq"])
-        all_p = pd.DataFrame({"COPPER": c["COPPER"].pct_change() * 100, t: c[t].diff()}).dropna()
+        chg = c[t].pct_change() * 100 if rate.get("pct") else c[t].diff()  # % change for stocks, else change in level
+        all_p = pd.DataFrame({"COPPER": c["COPPER"].pct_change() * 100, t: chg}).dropna()
         f = build_frame(
             all_p, t, fr,
             method=f"OLS regression of copper's {fr['adj']} return on the {fr['adj']} change in {rate['long']}, in {rate['unitLong']}s",
             xLabel=rate["xLabel"].replace("Change in", f"{fr['adj'].capitalize()} change in"),
-            result_fn=lambda st: f"{st['coef']['beta']['est']:+.2f}% copper per +1 {rate['unit']} {rate['short2']}, R² {st['r2']:.2f}, {pfmt(st['coef']['beta']['p'])}",
+            result_fn=lambda st: f"{st['coef']['beta']['est']:+.2f}% copper per +1{'%' if rate['unit'] == '%' else ' ' + rate['unit']} {rate['short2']}, R² {st['r2']:.2f}, {pfmt(st['coef']['beta']['p'])}",
             roll_title=f"Rolling {fr['rollLabel']} {rate['short2']} sensitivity (is it stable?)")
         step = rate.get("step")
         if step is None:  # pick a typical move for the readout
@@ -227,6 +259,7 @@ def rate_driver(px_all, rate):
     return {
         "kind": "level",
         **{k: rate[k] for k in ["unit", "unitLong", "levelSuffix", "levelLabel", "sensLabel", "caveat", "next", "short2"]},
+        "levelDigits": rate.get("levelDigits", 2),
         "title": rate["driver"],
         "question": rate["question"],
         "bench": rate["short"],

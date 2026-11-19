@@ -12,7 +12,7 @@ window.DRIVERS = [
   { category: "Commodities", driver: "Crude oil", measure: "Monthly return (5Y)", source: "yfinance (CL=F)", status: "Not tested", result: "" },
   { category: "Supply", driver: "Mine disruptions", measure: "Copper's abnormal return around major strikes, accidents and shutdowns (event study)", source: "News, company reports (data/mine_disruptions.json)", status: "Not tested", result: "" },
   { category: "Supply", driver: "Treatment charges", measure: "Spot TC index changes and annual benchmark TC", source: "Fastmarkets (quoted values), benchmark settlements (data/treatment_charges.json)", status: "Not tested", result: "" },
-  { category: "Inventories", driver: "Exchange inventories", measure: "LME + COMEX + SHFE stocks, monthly change", source: "LME, CME, SHFE", status: "Not tested", result: "" },
-  { category: "Positioning", driver: "Speculative positioning", measure: "CFTC managed-money net length", source: "CFTC Commitments of Traders", status: "Not tested", result: "" },
+  { category: "Inventories", driver: "Exchange inventories", measure: "Monthly % change in LME copper stocks (5Y)", source: "LME data via Westmetall", status: "Not tested", result: "" },
+  { category: "Positioning", driver: "Speculative positioning", measure: "Monthly change in managed-money net long, % of open interest (5Y)", source: "CFTC Commitments of Traders (COMEX copper)", status: "Not tested", result: "" },
   { category: "News", driver: "Strength Index", measure: "Monthly change in decayed headline score (5Y)", source: "Google News headlines, scored on this site", status: "Not tested", result: "" }
 ];
