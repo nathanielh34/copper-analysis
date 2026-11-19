@@ -164,7 +164,12 @@
         <li><b>Day 0 ${pct(s0.mean)}:</b> on the day the news broke, copper did ${(s0.mean || 0) >= 0 ? "better" : "worse"} than the stock market predicted, by ${n2(Math.abs(s0.mean || 0))} percentage points on average (${sigTxt(s0)}, p = ${pFmt(s0.p)}).</li>
         <li><b>First week ${pct(s5.mean)}:</b> over days 0 to +5 the average abnormal return was ${pct(s5.mean)}, with copper up in ${Math.round((s5.posShare || 0) * 100)}% of events. This is ${sigTxt(s5)}. The placebo test (the same number of random days drawn 5,000 times) gives p = ${pFmt(s5.pPlacebo)}.</li>
         <li><b>First month ${pct(s20.mean)}:</b> ${s20.mean != null && s5.mean != null && Math.abs(s20.mean) < Math.abs(s5.mean) ? "the effect fades over the following weeks, which fits a short-lived price reaction rather than a lasting shift." : "a month out the effect is about as big or bigger, though other news piles up over 20 days, so this window is noisier."}</li>
-        <li><b>Before the news ${pct(sp.mean)}:</b> ${Math.abs(sp.mean || 0) > Math.abs(s0.mean || 0) ? "copper moved noticeably in the days before, so some events (strike votes, failed talks) were partly priced in early." : "little movement beforehand, so most of these disruptions were genuine surprises."}</li>
+        <li><b>Before the news ${pct(sp.mean)}</b> (median ${pct(sp.median)}): ${(() => {
+          const big = a.events.filter((e) => e.pre != null).sort((x, y) => Math.abs(y.pre) - Math.abs(x.pre))[0];
+          if (big && Math.abs(big.pre) > 3 * Math.abs(sp.median || 0.1) && Math.abs(big.pre) > 8)
+            return `the average is dominated by one event, ${esc(big.mine)} (${pct(big.pre)} in the five days before), so the median is the better guide. Typically copper didn't move much beforehand.`;
+          return Math.abs(sp.median || 0) > Math.abs(s0.mean || 0) ? "copper moved noticeably in the days before, so some events (strike votes, failed talks) were partly priced in early." : "little movement beforehand, so most of these disruptions were genuine surprises.";
+        })()}</li>
         <li><b>Keep in mind:</b> with ${a.events.length} events, one big market day can swing the average. El Teniente (Aug 1, 2025) came right after copper's tariff crash, and the two Grasberg dates overlap. Strikes are often announced in advance, while accidents are true surprises.</li>
       </ul>
       <div class="plots">${pathPlot}${sizePlot}</div>
