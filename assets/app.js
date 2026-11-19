@@ -86,7 +86,7 @@
     stat(FINDINGS.length, "Findings") +
     (RESULTS ? stat(RESULTS.beta.toFixed(2), "Copper beta vs S&P 500") + stat(Math.round(RESULTS.r2Market * 100) + "%", "Moves explained by market") : "");
 
-  window.renderDrivers(DRIVERS, $("#driverTable"), $("#driverFilters"));
+  window.renderDrivers(DRIVERS, $("#driverTable"), $("#driverFilters"), $("#driverFrame"));
 
 
   $("#projStats").innerHTML =

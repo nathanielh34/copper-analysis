@@ -206,3 +206,10 @@ a.hl:hover { color: var(--navy-2); text-decoration: underline; }
 .si-dialog-box label input { display: block; width: 100%; margin-top: 3px; }
 .snippet { background: #24190f; color: #e9dfd2; padding: 10px 12px; border-radius: 8px; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
 .dlg-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Drivers: time-frame switch */
+.tf-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.tf-bar h2 { margin-bottom: 0; }
+.filters.tf { margin-top: 0; align-items: center; }
+.tf-label { font-size: 12px; color: var(--muted, #8a7a6a); margin-right: 4px; text-transform: uppercase; letter-spacing: .04em; }
+.dpanel .note { background: #fdf6e9; border: 1px solid #f0dfc0; border-radius: 8px; padding: 6px 10px; margin: 0 0 10px; }

@@ -5,11 +5,11 @@ Copper = COMEX copper futures, continuous front month (Yahoo ticker HG=F).
 
 Return drivers (one per entry in BENCHMARKS):
   - S&P 500 (SPY), AI stocks (AIQ), semiconductors (SMH), electrification (GRID), China large caps (FXI), US dollar index (DX-Y.NYB), crude oil (CL=F)
-  - 5-year monthly beta of copper vs the driver, 60 completed months
   - Linear regression  copper_return = alpha + beta * driver_return + error
+  - Three time frames: 5Y monthly (60 months), 10Y monthly (120 months), 1Y weekly (52 weeks)
 Level drivers (RATES): 10-year Treasury yield and the news strength index,
-  copper return vs the monthly change in the level.
-Plus diagnostics, residuals, and correlations at a few horizons.
+  copper return vs the change in the level.
+Plus diagnostics, residuals and rolling betas for each time frame.
 
 ETF prices are dividend-adjusted. Writes data/drivers_results.js.
 Run locally with:  pip install yfinance pandas statsmodels && python scripts/drivers_analysis.py
@@ -85,6 +85,65 @@ def load_prices():
     return px
 
 
+def _drop_current(m, freq):
+    """Drop the period still in progress (current month or current week)."""
+    if m.empty:
+        return m
+    today = pd.Timestamp.now(tz=m.index.tz) if m.index.tz is not None else pd.Timestamp.now()
+    last = m.index[-1]
+    if freq == "ME" and last.year == today.year and last.month == today.month:
+        return m.iloc[:-1]
+    if freq == "W-FRI" and last.normalize() >= today.normalize():
+        return m.iloc[:-1]  # this week's Friday close hasn't happened yet
+    return m
+
+
+def period_closes(px, freq):
+    return _drop_current(px.resample(freq).last(), freq)
+
+
+# The three time frames shown on the Drivers tab (switchable at the top of the tab).
+FRAMES = [
+    # key, resample rule, periods used, rolling window, labels
+    {"key": "5Y monthly", "freq": "ME", "n": 60, "roll": 36, "per": "month", "adj": "monthly", "rollLabel": "36-month", "fmt": "%Y-%m"},
+    {"key": "10Y monthly", "freq": "ME", "n": 120, "roll": 36, "per": "month", "adj": "monthly", "rollLabel": "36-month", "fmt": "%Y-%m"},
+    {"key": "1Y weekly", "freq": "W-FRI", "n": 52, "roll": 26, "per": "week", "adj": "weekly", "rollLabel": "26-week", "fmt": "%Y-%m-%d"},
+]
+
+
+def build_frame(all_p, t, fr, method, xLabel, result_fn, roll_title):
+    """all_p: DataFrame with COPPER (% return) and driver column t for every completed period."""
+    sample = all_p.tail(fr["n"])
+    res, stats_ = regress(sample["COPPER"], sample[t])
+    points = [[d.strftime(fr["fmt"]), r(x, 3), r(y, 3), r(f, 3), r(e, 3)]
+              for d, x, y, f, e in zip(sample.index, sample[t], sample["COPPER"], res.fittedvalues, res.resid)]
+    cov = all_p["COPPER"].rolling(fr["roll"]).cov(all_p[t])
+    var = all_p[t].rolling(fr["roll"]).var()
+    roll = (cov / var).dropna()
+    if fr["freq"] == "W-FRI":
+        roll = roll.tail(156)  # last 3 years of weekly rolling betas
+    b = stats_["coef"]["beta"]
+    short = len(sample) < fr["n"]
+    return {
+        "frame": fr["key"], "per": fr["per"], "adj": fr["adj"], "rollLabel": fr["rollLabel"],
+        "method": method + f", last {len(sample)} completed {fr['per']}s.",
+        "period": f"{sample.index[0].strftime('%b %Y')} to {sample.index[-1].strftime('%b %Y')}",
+        "short": short,
+        "xLabel": xLabel,
+        "yLabel": f"Copper {fr['adj']} return, %",
+        **stats_,
+        "points": points,
+        "rollingBeta": [[d.strftime(fr["fmt"]), r(v, 3)] for d, v in roll.items()],
+        "rollTitle": roll_title,
+        "status": "Significant" if b["p"] < 0.05 else "Not significant",
+        "result": f"{fr['key']}: " + result_fn(stats_),
+    }
+
+
+def pfmt(p):
+    return "p<0.001" if p < 0.001 else f"p={p:.3f}"
+
+
 # Each benchmark gets the same regression, charts and diagnostics on the Drivers tab.
 BENCHMARKS = [
     {"driver": "S&P 500 returns", "ticker": "SPY", "short": "S&P 500", "long": "SPY (S&P 500 ETF)",
@@ -107,43 +166,18 @@ BENCHMARKS = [
 def market_driver(px_all, bench):
     t = bench["ticker"]
     px = px_all[["COPPER", t]].dropna()
-
-    # --- Main model: 5-year monthly (60 completed months)
-    mret = monthly_returns(px).tail(60)
-    res, stats_ = regress(mret["COPPER"], mret[t])
-    points = [[d.strftime("%Y-%m"), r(x, 3), r(y, 3), r(f, 3), r(e, 3)]
-              for d, x, y, f, e in zip(mret.index, mret[t], mret["COPPER"], res.fittedvalues, res.resid)]
-
-    # --- Rolling 36-month beta (full history) to show how beta changes over time
-    all_m = monthly_returns(px)
-    cov = all_m["COPPER"].rolling(36).cov(all_m[t])
-    var = all_m[t].rolling(36).var()
-    rolling = [[d.strftime("%Y-%m"), r(b, 3)] for d, b in (cov / var).dropna().items()]
-
-    # --- Correlation / beta at other horizons for comparison
-    d = px.pct_change().dropna()
-    w = px.resample("W-FRI").last().pct_change().dropna()
-    def cb(df, n):
-        df = df.tail(n)
-        return {"corr": r(df["COPPER"].corr(df[t]), 3), "beta": r(df["COPPER"].cov(df[t]) / df[t].var(), 3), "n": len(df)}
-    horizons = {"1Y daily": cb(d, 252), "3Y weekly": cb(w, 156), "5Y monthly": cb(all_m, 60), "Since 2005 monthly": cb(all_m, len(all_m))}
-
-    return {
-        "title": bench["driver"],
-        "question": bench["question"],
-        "method": f"OLS regression of copper's monthly return on {bench['long']} monthly return, last 60 completed months.",
-        "period": f"{mret.index[0].strftime('%b %Y')} to {mret.index[-1].strftime('%b %Y')}",
-        "bench": bench["short"],
-        "xLabel": f"{bench['short']} ({t}) monthly return, %",
-        "yLabel": "Copper monthly return, %",
-        **stats_,
-        "points": points,          # [month, x, y, fitted, residual]
-        "rollingBeta": rolling,    # [month, beta]
-        "horizons": horizons,
-        "status": "Significant" if stats_["coef"]["beta"]["p"] < 0.05 else "Not significant",
-        "result": f"5Y monthly beta {stats_['coef']['beta']['est']:.2f}, R² {stats_['r2']:.2f}, "
-                  + ("p<0.001" if stats_['coef']['beta']['p'] < 0.001 else f"p={stats_['coef']['beta']['p']:.3f}"),
-    }
+    frames = {}
+    for fr in FRAMES:
+        all_p = period_closes(px, fr["freq"]).pct_change().dropna() * 100
+        frames[fr["key"]] = build_frame(
+            all_p, t, fr,
+            method=f"OLS regression of copper's {fr['adj']} return on {bench['long']} {fr['adj']} return",
+            xLabel=f"{bench['short']} ({t}) {fr['adj']} return, %",
+            result_fn=lambda st: f"beta {st['coef']['beta']['est']:.2f}, R² {st['r2']:.2f}, {pfmt(st['coef']['beta']['p'])}",
+            roll_title=f"Rolling {fr['rollLabel']} beta (how stable is beta?)")
+    main = frames["5Y monthly"]
+    return {"title": bench["driver"], "question": bench["question"], "bench": bench["short"],
+            "frames": frames, **main}
 
 
 # Level drivers: copper return regressed on the monthly CHANGE in a level (a yield or an index)
@@ -152,7 +186,7 @@ RATES = [
      "question": "Does copper rise or fall when long-term interest rates move?",
      "unit": "pp", "unitLong": "percentage point", "step": 0.25, "levelSuffix": "%",
      "xLabel": "Change in 10-year Treasury yield, percentage points", "short2": "10Y yield",
-     "levelLabel": "10Y yield now", "sensLabel": "Rate sensitivity", "rollTitle": "Rolling 36-month rate sensitivity (is it stable?)",
+     "levelLabel": "10Y yield now", "sensLabel": "Rate sensitivity",
      "caveat": "Yields often rise when the economy is strong, which is also when copper demand is strong. Some of this relationship may be growth in disguise, so the real test is a multiple regression with the S&amp;P 500 or China stocks alongside yield changes. Higher rates also raise the cost of holding inventory.",
      "next": ["<b>Control for growth.</b> Run copper on the S&amp;P 500 <i>and</i> yield changes together. If the yield coefficient stays significant, rates matter for copper beyond their link to the economy.",
               "<b>Add the dollar:</b> rate moves often move the dollar too. Put both in one regression to see which one copper actually responds to.",
@@ -161,7 +195,7 @@ RATES = [
      "question": "Do months with more bullish copper headlines line up with better copper returns?",
      "unit": "pt", "unitLong": "index point", "step": None, "levelSuffix": "",
      "xLabel": "Change in strength index, points", "short2": "strength index",
-     "levelLabel": "Index now", "sensLabel": "Index sensitivity", "rollTitle": "Rolling 36-month index sensitivity (is it stable?)",
+     "levelLabel": "Index now", "sensLabel": "Index sensitivity",
      "caveat": "This is a same-month relationship, so it shows whether headlines and prices move together, not whether the index predicts. Much copper news reports moves that already happened (\"copper jumps on China data\"). The Strength Index tab tests prediction: the index at month end vs next month's return.",
      "next": ["<b>Check the misses:</b> open the months with the largest residuals on the Strength Index tab (click the chart) and see whether the headlines were scored correctly; fix them with overrides or by editing the rules.",
               "<b>Add the dollar and China:</b> regress copper on the index together with the dollar and China stocks to see if headlines explain anything beyond the macro drivers.",
@@ -169,62 +203,35 @@ RATES = [
 ]
 
 
-def month_end_changes(levels):
-    """Yield levels -> monthly change in percentage points, completed months only."""
-    m = levels.resample("ME").last()
-    today = pd.Timestamp.now(tz=m.index.tz) if m.index.tz is not None else pd.Timestamp.now()
-    if m.index[-1].year == today.year and m.index[-1].month == today.month:
-        m = m.iloc[:-1]
-    return m
-
-
 def rate_driver(px_all, rate):
     t = rate["ticker"]
     px = px_all[["COPPER", t]].dropna()
-    m = month_end_changes(px)
-    all_m = pd.DataFrame({"COPPER": m["COPPER"].pct_change() * 100, t: m[t].diff()}).dropna()
-    mret = all_m.tail(60)
-    res, stats_ = regress(mret["COPPER"], mret[t])
-    points = [[d.strftime("%Y-%m"), r(x, 3), r(y, 3), r(f, 3), r(e, 3)]
-              for d, x, y, f, e in zip(mret.index, mret[t], mret["COPPER"], res.fittedvalues, res.resid)]
-
-    # Rolling 36-month sensitivity
-    cov = all_m["COPPER"].rolling(36).cov(all_m[t])
-    var = all_m[t].rolling(36).var()
-    rolling = [[d.strftime("%Y-%m"), r(b, 3)] for d, b in (cov / var).dropna().items()]
-
-    # Other horizons: copper % return vs change in the level
-    def pair(df):
-        return pd.DataFrame({"COPPER": df["COPPER"].pct_change() * 100, t: df[t].diff()}).dropna()
-    d = pair(px)
-    w = pair(px.resample("W-FRI").last())
-    def cb(df, n):
-        df = df.tail(n)
-        return {"corr": r(df["COPPER"].corr(df[t]), 3), "beta": r(df["COPPER"].cov(df[t]) / df[t].var(), 3), "n": len(df)}
-    horizons = {"1Y daily": cb(d, 252), "3Y weekly": cb(w, 156), "5Y monthly": cb(all_m, 60), "Since 2005 monthly": cb(all_m, len(all_m))}
-
-    b = stats_["coef"]["beta"]
-    if rate.get("step") is None:  # pick a typical monthly move for the readout
-        sd = float(mret[t].std())
-        rate = {**rate, "step": max(1, int(round(sd / 5.0)) * 5) if sd >= 5 else max(1, int(round(sd)))}
+    frames = {}
+    for fr in FRAMES:
+        c = period_closes(px, fr["freq"])
+        all_p = pd.DataFrame({"COPPER": c["COPPER"].pct_change() * 100, t: c[t].diff()}).dropna()
+        f = build_frame(
+            all_p, t, fr,
+            method=f"OLS regression of copper's {fr['adj']} return on the {fr['adj']} change in {rate['long']}, in {rate['unitLong']}s",
+            xLabel=rate["xLabel"].replace("Change in", f"{fr['adj'].capitalize()} change in"),
+            result_fn=lambda st: f"{st['coef']['beta']['est']:+.2f}% copper per +1 {rate['unit']} {rate['short2']}, R² {st['r2']:.2f}, {pfmt(st['coef']['beta']['p'])}",
+            roll_title=f"Rolling {fr['rollLabel']} {rate['short2']} sensitivity (is it stable?)")
+        step = rate.get("step")
+        if step is None:  # pick a typical move for the readout
+            sd = float(all_p[t].tail(fr["n"]).std())
+            step = max(1, int(round(sd / 5.0)) * 5) if sd >= 5 else max(1, int(round(sd)))
+        f["step"] = step
+        frames[fr["key"]] = f
+    main = frames["5Y monthly"]
     return {
         "kind": "level",
-        **{k: rate[k] for k in ["unit", "unitLong", "step", "levelSuffix", "levelLabel", "sensLabel", "rollTitle", "caveat", "next", "short2"]},
+        **{k: rate[k] for k in ["unit", "unitLong", "levelSuffix", "levelLabel", "sensLabel", "caveat", "next", "short2"]},
         "title": rate["driver"],
         "question": rate["question"],
-        "method": f"OLS regression of copper's monthly return on the monthly change in {rate['long']}, in {rate['unitLong']}s, last 60 completed months.",
-        "period": f"{mret.index[0].strftime('%b %Y')} to {mret.index[-1].strftime('%b %Y')}",
         "bench": rate["short"],
-        "xLabel": rate["xLabel"],
-        "yLabel": "Copper monthly return, %",
         "yieldNow": r(px[t].iloc[-1], 3),
-        **stats_,
-        "points": points,
-        "rollingBeta": rolling,
-        "horizons": horizons,
-        "status": "Significant" if b["p"] < 0.05 else "Not significant",
-        "result": f"{b['est']:+.2f}% copper per +1 {rate['unit']} {rate['short2']}, R² {stats_['r2']:.2f}, "
-                  + ("p<0.001" if b["p"] < 0.001 else f"p={b['p']:.3f}"),
+        "frames": frames,
+        **main,
     }
 
 

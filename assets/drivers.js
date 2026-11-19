@@ -5,6 +5,12 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const n2 = (v, d = 2) => (v == null ? "—" : Number(v).toFixed(d));
   const pFmt = (p) => (p == null ? "—" : p < 0.0001 ? "< 0.0001" : p.toFixed(4));
+  // ---------------- time frame (switch at the top of the tab) ----------------
+  const FRAMES = ["5Y monthly", "10Y monthly", "1Y weekly"];
+  let TF = "5Y monthly";
+  try { const saved = localStorage.getItem("driverFrame"); if (FRAMES.includes(saved)) TF = saved; } catch (e) {}
+  // Driver analysis for the chosen time frame (falls back to the top-level 5Y monthly fields)
+  const pick = (a) => (a && a.frames && a.frames[TF] ? { ...a, ...a.frames[TF] } : a);
   const benchName = (a) => esc(a.bench || "S&P 500");
   const sigPill = (p) => (p == null ? "" : p < 0.05 ? '<span class="pill good">Significant at 5%</span>' : '<span class="pill bad">Not significant</span>');
   const statusPill = (s) => {
@@ -44,7 +50,7 @@
     s += a.points.map((p) => `<circle cx="${sx(p[1])}" cy="${sy(p[2])}" r="4.5" class="dot"><title>${p[0]}: ${isRate ? `${esc(a.short2 || "10Y yield")} ${p[1] > 0 ? "+" : ""}${n2(p[1])} ${esc(a.unit || "pp")}` : `${benchName(a)} ${n2(p[1])}%`}, copper ${n2(p[2])}%</title></circle>`).join("");
     s += `<line x1="${sx(xr[0])}" y1="${sy(al + b * xr[0])}" x2="${sx(xr[1])}" y2="${sy(al + b * xr[1])}" class="fit"/>`;
     s += `<text x="${W - P.r - 6}" y="${P.t + 16}" text-anchor="end" class="eq">ŷ = ${n2(al)} ${b < 0 ? "−" : "+"} ${n2(Math.abs(b))}x &nbsp; R² = ${n2(a.r2)}</text>`;
-    return svg(s, isRate ? `Regression: copper monthly return vs change in ${esc(a.short2 || "10-year yield")}` : `Regression: copper vs ${benchName(a)} monthly returns`);
+    return svg(s, isRate ? `Regression: copper ${a.adj || "monthly"} return vs change in ${esc(a.short2 || "10-year yield")}` : `Regression: copper vs ${benchName(a)} ${a.adj || "monthly"} returns`);
   }
 
   function residualPlot(a) {
@@ -82,19 +88,21 @@
 
   // ---------------- detail panel ----------------
   function detail(a) {
+    a = pick(a);
     const b = a.coef.beta, al = a.coef.alpha, bn = benchName(a);
-    const annAlpha = al.est * 12;
+    const per = a.per || "month", adj = a.adj || "monthly";
+    const annAlpha = al.est * (per === "week" ? 52 : 12);
     const card = (l, v, sub = "") => `<div class="dstat"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
     const flag = (ok, good, bad) => (ok ? `<span class="pill good">${good}</span>` : `<span class="pill mid">${bad}</span>`);
     const interp = [
-      `<b>Beta ${n2(b.est)}:</b> over ${esc(a.period)}, when the ${bn} rose 1% in a month, copper rose about ${n2(b.est)}% on average. ` +
+      `<b>Beta ${n2(b.est)}:</b> over ${esc(a.period)}, when the ${bn} rose 1% in a ${per}, copper rose about ${n2(b.est)}% on average. ` +
         (b.ciHigh < 0 ? `The 95% range (${n2(b.ciLow)} to ${n2(b.ciHigh)}) is entirely below zero, so copper tends to move <b>opposite</b> to the ${bn}.` :
          b.ciLow > 1 ? `Copper moves <b>more than 1-for-1</b> with the ${bn} (the 95% range is entirely above 1).` :
          b.ciHigh < 1 ? `Copper moves <b>less than 1-for-1</b> with the ${bn} (the 95% range is entirely below 1).` :
          `The 95% range (${n2(b.ciLow)} to ${n2(b.ciHigh)}) includes 1, so we can't rule out that copper moves 1-for-1 with the ${bn}.`),
-      `<b>R² ${n2(a.r2)}:</b> the ${bn} explains about <b>${Math.round(a.r2 * 100)}%</b> of copper's month-to-month moves. The other <b>${Math.round((1 - a.r2) * 100)}%</b> is what copper-specific drivers (mine supply, China demand, inventories, the strength index) need to explain.`,
+      `<b>R² ${n2(a.r2)}:</b> the ${bn} explains about <b>${Math.round(a.r2 * 100)}%</b> of copper's ${per}-to-${per} moves. The other <b>${Math.round((1 - a.r2) * 100)}%</b> is what copper-specific drivers (mine supply, China demand, inventories, the strength index) need to explain.`,
       `<b>Correlation ${n2(a.corr)}:</b> ${Math.abs(a.corr) >= 0.7 ? "a strong" : Math.abs(a.corr) >= 0.4 ? "a moderate" : "a weak"} positive relationship (correlation is the square root of R² in a one-variable regression).`,
-      `<b>Alpha ${n2(al.est)}% per month</b> (about ${n2(annAlpha, 1)}% a year): ${al.p < 0.05 ? "statistically significant, so copper earned returns beyond what its exposure to this driver explains." : `not statistically significant (p = ${pFmt(al.p)}), so there's no evidence copper did better or worse than this driver predicts.`}`,
+      `<b>Alpha ${n2(al.est)}% per ${per}</b> (about ${n2(annAlpha, 1)}% a year): ${al.p < 0.05 ? "statistically significant, so copper earned returns beyond what its exposure to this driver explains." : `not statistically significant (p = ${pFmt(al.p)}), so there's no evidence copper did better or worse than this driver predicts.`}`,
     ];
     const isRate = (a.kind === "rate" || a.kind === "level");
     const dir = (v) => (v >= 0 ? "positive" : "negative");
@@ -102,24 +110,24 @@
     if (isRate) {
       const step = a.step ?? 0.25, unit = a.unit || "pp", what = a.short2 || "10-year yield";
       const q = b.est * step;
-      interp[0] = `<b>Sensitivity ${n2(b.est)}:</b> over ${esc(a.period)}, for each 1 ${esc(a.unitLong === "percentage point" ? "percentage point (100 basis points)" : a.unitLong || "percentage point (100 basis points)")} rise in the ${esc(what)} in a month, copper returned about <b>${n2(Math.abs(b.est))}%</b> ${b.est >= 0 ? "more" : "less"} on average. A +${step} ${unit}${step > 1 ? "s" : ""} month works out to about ${n2(q)}%. ` +
+      interp[0] = `<b>Sensitivity ${n2(b.est)}:</b> over ${esc(a.period)}, for each 1 ${esc(a.unitLong === "percentage point" ? "percentage point (100 basis points)" : a.unitLong || "percentage point (100 basis points)")} rise in the ${esc(what)} in a ${per}, copper returned about <b>${n2(Math.abs(b.est))}%</b> ${b.est >= 0 ? "more" : "less"} on average. A +${step} ${unit}${step > 1 ? "s" : ""} ${per} works out to about ${n2(q)}%. ` +
         (b.p < 0.05 ? `The 95% range (${n2(b.ciLow)} to ${n2(b.ciHigh)}) excludes zero, so the effect is statistically significant.` : `The 95% range (${n2(b.ciLow)} to ${n2(b.ciHigh)}) includes zero, so we can't rule out that rates have no effect.`);
-      interp[1] = `<b>R² ${n2(a.r2)}:</b> changes in the ${esc(what)} explain about <b>${Math.round(a.r2 * 100)}%</b> of copper's month-to-month moves on their own.`;
-      interp[3] = `<b>Intercept ${n2(al.est)}% per month:</b> copper's average monthly return in a month when the ${esc(what)} didn't change${al.p < 0.05 ? " (statistically significant)." : ` (not significant, p = ${pFmt(al.p)}). Unlike alpha in the stock regressions, this isn't a measure of outperformance.`}`;
+      interp[1] = `<b>R² ${n2(a.r2)}:</b> changes in the ${esc(what)} explain about <b>${Math.round(a.r2 * 100)}%</b> of copper's ${per}-to-${per} moves on their own.`;
+      interp[3] = `<b>Intercept ${n2(al.est)}% per ${per}:</b> copper's average ${adj} return in a ${per} when the ${esc(what)} didn't change${al.p < 0.05 ? " (statistically significant)." : ` (not significant, p = ${pFmt(al.p)}). Unlike alpha in the stock regressions, this isn't a measure of outperformance.`}`;
       interp.push(`<b>Keep in mind:</b> ${a.caveat || "rates and stocks often move together. Some of this relationship may be the stock market in disguise, so the real test is a multiple regression with both the S&amp;P 500 and yield changes."}`);
     }
-    const h = a.horizons || {};
     return `
       <div class="dpanel">
+        ${a.short ? `<p class="small note">Only ${a.n} ${per}s of history are available for this driver, so the ${esc(a.frame)} sample is shorter than the others.</p>` : ""}
         <div class="dhead">
           <div><h3>${esc(a.title)}</h3><p class="muted">${esc(a.question)}</p></div>
-          <div class="muted small">${esc(a.period)} · n = ${a.n} months<br>${esc(a.method)}</div>
+          <div class="muted small">${esc(a.period)} · n = ${a.n} ${per}s<br>${esc(a.method)}</div>
         </div>
         <div class="dstats">
-          ${isRate ? card(a.sensLabel || "Rate sensitivity", n2(b.est) + "%", `Copper return per +1 ${esc(a.unit || "pp")} · 95% CI ${n2(b.ciLow)} to ${n2(b.ciHigh)}`) : card("5Y monthly beta", n2(b.est), `95% CI ${n2(b.ciLow)} to ${n2(b.ciHigh)}`)}
+          ${isRate ? card(a.sensLabel || "Rate sensitivity", n2(b.est) + "%", `Copper return per +1 ${esc(a.unit || "pp")} · 95% CI ${n2(b.ciLow)} to ${n2(b.ciHigh)}`) : card(`${esc(a.frame || "5Y monthly")} beta`, n2(b.est), `95% CI ${n2(b.ciLow)} to ${n2(b.ciHigh)}`)}
           ${card("R²", n2(a.r2), `adj. R² ${n2(a.adjR2)}`)}
           ${card("Correlation", n2(a.corr), `Copper vs ${bn}`)}
-          ${card(isRate ? "Intercept (monthly)" : "Alpha (monthly)", n2(al.est) + "%", `p = ${pFmt(al.p)}`)}
+          ${card(isRate ? `Intercept (${adj})` : `Alpha (${adj})`, n2(al.est) + "%", `p = ${pFmt(al.p)}`)}
           ${card(isRate ? "Sensitivity p-value" : "Beta p-value", pFmt(b.p), isRate ? "H₀: no effect" : "H₀: beta = 0")}
           ${isRate ? card(a.levelLabel || "10Y yield now", n2(a.yieldNow) + (a.levelSuffix ?? "%"), "latest close") : card("Beta ≠ 1 test", `p = ${pFmt(a.betaVsOne.p)}`, "H₀: beta = 1")}
         </div>
@@ -128,10 +136,10 @@
 
         <div class="plots">${scatterPlot(a)}${residualPlot(a)}</div>
         <div class="plots">
-          ${timePlot(a.points.map((p) => [p[0], p[4]]), "Residuals over time (unexplained copper return each month)", "Residual", { bars: true, symmetric: true })}
+          ${timePlot(a.points.map((p) => [p[0], p[4]]), `Residuals over time (unexplained copper return each ${per})`, "Residual", { bars: true, symmetric: true })}
           ${a.rollingBeta && a.rollingBeta.length ? (isRate
-            ? timePlot(a.rollingBeta, a.rollTitle || "Rolling 36-month rate sensitivity (is it stable?)", `% per +1 ${a.unit || "pp"}`, { ref: 0, refLabel: "0 = no effect" })
-            : timePlot(a.rollingBeta, "Rolling 36-month beta (how stable is beta?)", "Beta", { ref: 1, refLabel: "beta = 1 (moves with market)" })) : ""}
+            ? timePlot(a.rollingBeta, a.rollTitle || "Rolling sensitivity (is it stable?)", `% per +1 ${a.unit || "pp"}`, { ref: 0, refLabel: "0 = no effect" })
+            : timePlot(a.rollingBeta, a.rollTitle || "Rolling beta (how stable is beta?)", "Beta", { ref: 1, refLabel: "beta = 1 (moves with market)" })) : ""}
         </div>
 
         <div class="dtables">
@@ -150,19 +158,13 @@
             <div class="tablewrap"><table>
               <thead><tr><th>Test</th><th class="num">Value</th><th>Reading</th></tr></thead>
               <tbody>
-                <tr><td>Durbin-Watson<br><span class="muted small">residuals independent month to month?</span></td><td class="num">${n2(a.durbinWatson)}</td><td>${flag(a.durbinWatson > 1.5 && a.durbinWatson < 2.5, "No autocorrelation", "Possible autocorrelation")}</td></tr>
+                <tr><td>Durbin-Watson<br><span class="muted small">residuals independent ${per} to ${per}?</span></td><td class="num">${n2(a.durbinWatson)}</td><td>${flag(a.durbinWatson > 1.5 && a.durbinWatson < 2.5, "No autocorrelation", "Possible autocorrelation")}</td></tr>
                 <tr><td>Breusch-Pagan<br><span class="muted small">constant residual spread?</span></td><td class="num">p ${pFmt(a.breuschPaganP)}</td><td>${flag(a.breuschPaganP > 0.05, "Constant variance", "Heteroskedasticity")}</td></tr>
                 <tr><td>Jarque-Bera<br><span class="muted small">residuals normally distributed?</span></td><td class="num">p ${pFmt(a.jarqueBeraP)}</td><td>${flag(a.jarqueBeraP > 0.05, "Looks normal", "Fat tails / skew")}</td></tr>
                 <tr><td>Skew / kurtosis</td><td class="num">${n2(a.skew)} / ${n2(a.kurtosis)}</td><td class="muted small">normal = 0 / 3</td></tr>
               </tbody></table></div>
           </div>
         </div>
-
-        <h4>Does the horizon matter?</h4>
-        <div class="tablewrap"><table>
-          <thead><tr><th>Sample</th><th class="num">Correlation</th><th class="num">${isRate ? `Sensitivity (% per ${esc(a.unit || "pp")})` : "Beta"}</th><th class="num">Observations</th></tr></thead>
-          <tbody>${Object.entries(h).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${n2(v.corr)}</td><td class="num">${n2(v.beta)}</td><td class="num">${v.n}</td></tr>`).join("")}</tbody>
-        </table></div>
 
         <div class="next">
           <h4>What this suggests adding next</h4>
@@ -173,16 +175,19 @@
             : `<li><b>Use this as the baseline.</b> The ${Math.round((1 - a.r2) * 100)}% of variation the market doesn't explain is what each copper-specific driver must account for. Test the next drivers on copper's <i>residuals</i> (or add them as extra variables) so you aren't re-measuring the market.</li>
             <li><b>Multiple regression:</b> add the US dollar, China stocks, oil and the strength index alongside the ${bn} and watch whether adjusted R² rises.</li>`}
             ${a.breuschPaganP != null && a.breuschPaganP <= 0.05 ? "<li><b>Robust standard errors</b> (HC1): the Breusch-Pagan test flags changing variance, so p-values should be recomputed with robust errors.</li>" : ""}
-            ${a.jarqueBeraP != null && a.jarqueBeraP <= 0.05 ? "<li><b>Check the outliers</b> (red dots in the residual plot): find which months they are and whether a news event explains them. That's a direct link to your strength index.</li>" : "<li><b>Look at the largest residuals</b> and match them to news events; that links this baseline to your strength index.</li>"}
-            <li><b>Rolling ${isRate ? "sensitivity" : "beta"}</b> shows whether the relationship is stable; if it shifts a lot, use a shorter window when projecting.</li>
+            ${a.jarqueBeraP != null && a.jarqueBeraP <= 0.05 ? `<li><b>Check the outliers</b> (red dots in the residual plot): find which ${per}s they are and whether a news event explains them. That's a direct link to your strength index.</li>` : "<li><b>Look at the largest residuals</b> and match them to news events; that links this baseline to your strength index.</li>"}
+            <li><b>Rolling ${isRate ? "sensitivity" : "beta"}</b> (${esc(a.rollLabel || "36-month")} window) shows whether the relationship is stable; if it shifts a lot, use a shorter window when projecting.</li>
           </ul>
         </div>
       </div>`;
   }
 
   // ---------------- table ----------------
-  window.renderDrivers = function (drivers, tableEl, filtersEl) {
+  window.renderDrivers = function (drivers, tableEl, filtersEl, frameEl) {
     let filter = "All";
+    // "Monthly return (5Y)" -> "Weekly return (1Y)" etc. for drivers with an analysis
+    const frameMeasure = (m) => m.replace(/^Monthly/, TF.endsWith("weekly") ? "Weekly" : "Monthly").replace("(5Y)", `(${TF.split(" ")[0]})`);
+    const statusOf = (d) => { const a = pick(A[d.driver]); return a ? { status: a.status, result: a.result } : d; };
     const open = new Set(Object.keys(A).slice(0, 1)); // first analysed driver starts open
     function draw() {
       const rows = filter === "All" ? drivers : drivers.filter((d) => d.category === filter);
@@ -191,7 +196,7 @@
           const a = A[d.driver], isOpen = a && open.has(d.driver);
           return `<tr class="${a ? "clickable" : ""} ${isOpen ? "open" : ""}" data-d="${esc(d.driver)}">
               <td class="chev">${a ? (isOpen ? "▾" : "▸") : ""}</td><td>${esc(d.category)}</td><td><b>${esc(d.driver)}</b>${a ? ' <span class="pill blue">Analysis</span>' : ""}</td>
-              <td>${esc(d.measure)}</td><td>${esc(d.source)}</td><td>${statusPill(d.status)}</td><td>${esc(d.result)}</td></tr>` +
+              <td>${esc(a ? frameMeasure(d.measure) : d.measure)}</td><td>${esc(d.source)}</td><td>${statusPill(statusOf(d).status)}</td><td>${esc(statusOf(d).result)}</td></tr>` +
             (isOpen ? `<tr class="drow"><td colspan="7">${detail(a)}</td></tr>` : "");
         }).join("") + "</tbody>";
       tableEl.querySelectorAll("tr.clickable").forEach((tr) => (tr.onclick = () => {
@@ -203,6 +208,15 @@
       filtersEl.innerHTML = cats.map((c) => `<button class="${c === filter ? "on" : ""}">${esc(c)}</button>`).join("");
       filtersEl.querySelectorAll("button").forEach((b, i) => (b.onclick = () => { filter = cats[i]; drawFilters(); draw(); }));
     };
-    drawFilters(); draw();
+    const drawFrames = () => {
+      if (!frameEl) return;
+      frameEl.innerHTML = `<span class="tf-label">Time frame</span>` + FRAMES.map((f) => `<button class="${f === TF ? "on" : ""}">${esc(f)}</button>`).join("");
+      frameEl.querySelectorAll("button").forEach((b, i) => (b.onclick = () => {
+        TF = FRAMES[i];
+        try { localStorage.setItem("driverFrame", TF); } catch (e) {}
+        drawFrames(); draw();
+      }));
+    };
+    drawFrames(); drawFilters(); draw();
   };
 })();
