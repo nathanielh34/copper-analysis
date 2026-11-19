@@ -12,6 +12,7 @@ If a download fails the existing file is kept, so the analysis always has data.
 Run locally with:  pip install pandas lxml requests && python scripts/fetch_supply_data.py
 """
 import io
+import re
 import zipfile
 from datetime import date
 from pathlib import Path
@@ -27,12 +28,9 @@ COPPER_CODE = "085692"
 
 
 # ---------------------------------------------------------------- LME stocks
-def fetch_lme():
-    url = "https://www.westmetall.com/en/markdaten.php?action=table&field=LME_Cu_cash"
-    html = requests.get(url, headers=UA, timeout=60).text
-    tables = pd.read_html(io.StringIO(html), thousands=",", decimal=".")
+def _parse_lme(html):
     rows = []
-    for t in tables:
+    for t in pd.read_html(io.StringIO(html), thousands=",", decimal="."):
         cols = [str(c).lower() for c in (t.columns.get_level_values(-1) if isinstance(t.columns, pd.MultiIndex) else t.columns)]
         t.columns = cols
         dcol = next((c for c in cols if "date" in c), cols[0])
@@ -44,9 +42,27 @@ def fetch_lme():
             v = pd.to_numeric(str(s).replace(",", ""), errors="coerce")
             if pd.notna(dt) and pd.notna(v):
                 rows.append((dt.date(), float(v)))
+    return rows
+
+
+def fetch_lme():
+    base = "https://www.westmetall.com/en/markdaten.php?action=table&field=LME_Cu_cash"
+    html = requests.get(base, headers=UA, timeout=60).text
+    rows = _parse_lme(html)
+    # The page shows the current year; earlier years are behind year links on the same page.
+    links = sorted(set(re.findall(r'href="([^"]*LME_Cu_cash[^"]*(?:19|20)\d\d[^"]*)"', html)))
+    print(f"  LME: {len(rows)} rows on the first page, {len(links)} year links")
+    if not links:  # fall back to guessing the parameter name
+        links = [f"{base}&year={y}" for y in range(2008, date.today().year)]
+    for href in links:
+        u = requests.compat.urljoin(base, href.replace("&amp;", "&"))
+        try:
+            rows += _parse_lme(requests.get(u, headers=UA, timeout=60).text)
+        except Exception as e:
+            print("  LME year page failed:", u, e)
     df = pd.DataFrame(rows, columns=["date", "stocks"]).drop_duplicates("date").sort_values("date")
     if len(df) < 500:
-        raise RuntimeError(f"only {len(df)} LME rows parsed")
+        raise RuntimeError(f"only {len(df)} LME rows parsed; links tried: {links[:3]}")
     return df
 
 
@@ -64,7 +80,11 @@ def fetch_cftc_api():
     df = pd.DataFrame(data)
     out = pd.DataFrame({"date": pd.to_datetime(df["report_date_as_yyyy_mm_dd"]).dt.date})
     for src, dst in FIELDS.items():
-        col = src if src in df.columns else src.replace("__", "_")
+        # API field names differ slightly from the files (e.g. without "_all"); match on the stem
+        stem = re.sub(r"_+", "_", src.replace("_all", ""))
+        col = next((c for c in df.columns if re.sub(r"_+", "_", c).startswith(stem)), None)
+        if col is None:
+            raise KeyError(src)
         out[dst] = pd.to_numeric(df[col], errors="coerce")
     return out
 
