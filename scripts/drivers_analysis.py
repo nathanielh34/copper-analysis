@@ -245,7 +245,8 @@ def rate_driver(px_all, rate):
         all_p = pd.DataFrame({"COPPER": c["COPPER"].pct_change() * 100, t: chg}).dropna()
         f = build_frame(
             all_p, t, fr,
-            method=f"OLS regression of copper's {fr['adj']} return on the {fr['adj']} change in {rate['long']}, in {rate['unitLong']}s",
+            method=(f"OLS regression of copper's {fr['adj']} return on the {fr['adj']} percent change in {rate['long']}" if rate.get("pct")
+                    else f"OLS regression of copper's {fr['adj']} return on the {fr['adj']} change in {rate['long']}, in {rate['unitLong']}s"),
             xLabel=rate["xLabel"].replace("Change in", f"{fr['adj'].capitalize()} change in"),
             result_fn=lambda st: f"{st['coef']['beta']['est']:+.2f}% copper per +1{'%' if rate['unit'] == '%' else ' ' + rate['unit']} {rate['short2']}, R² {st['r2']:.2f}, {pfmt(st['coef']['beta']['p'])}",
             roll_title=f"Rolling {fr['rollLabel']} {rate['short2']} sensitivity (is it stable?)")

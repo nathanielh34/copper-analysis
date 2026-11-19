@@ -367,7 +367,7 @@
           <div class="muted small">${esc(a.period)} · n = ${a.n} ${per}s<br>${esc(a.method)}</div>
         </div>
         <div class="dstats">
-          ${isRate ? card(a.sensLabel || "Rate sensitivity", n2(b.est) + "%", `Copper return per +1 ${esc(a.unit || "pp")} · 95% CI ${n2(b.ciLow)} to ${n2(b.ciHigh)}`) : card(`${esc(a.frame || "5Y monthly")} beta`, n2(b.est), `95% CI ${n2(b.ciLow)} to ${n2(b.ciHigh)}`)}
+          ${isRate ? card(a.sensLabel || "Rate sensitivity", n2(b.est) + "%", `Copper return per +1${a.unit === "%" ? "%" : " " + esc(a.unit || "pp")} · 95% CI ${n2(b.ciLow)} to ${n2(b.ciHigh)}`) : card(`${esc(a.frame || "5Y monthly")} beta`, n2(b.est), `95% CI ${n2(b.ciLow)} to ${n2(b.ciHigh)}`)}
           ${card("R²", n2(a.r2), `adj. R² ${n2(a.adjR2)}`)}
           ${card("Correlation", n2(a.corr), `Copper vs ${bn}`)}
           ${card(isRate ? `Intercept (${adj})` : `Alpha (${adj})`, n2(al.est) + "%", `p = ${pFmt(al.p)}`)}
