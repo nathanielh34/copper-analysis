@@ -6,11 +6,31 @@
   const n2 = (v, d = 2) => (v == null ? "—" : Number(v).toFixed(d));
   const pFmt = (p) => (p == null ? "—" : p < 0.0001 ? "< 0.0001" : p.toFixed(4));
   // ---------------- time frame (switch at the top of the tab) ----------------
-  const FRAMES = ["5Y monthly", "10Y monthly", "1Y weekly"];
+  const BASE = ["5Y monthly", "10Y monthly", "1Y weekly"];
+  const FRAMES = [...BASE, "Average"];
   let TF = "5Y monthly";
   try { const saved = localStorage.getItem("driverFrame"); if (FRAMES.includes(saved)) TF = saved; } catch (e) {}
   // Driver analysis for the chosen time frame (falls back to the top-level 5Y monthly fields)
   const pick = (a) => (a && a.frames && a.frames[TF] ? { ...a, ...a.frames[TF] } : a);
+  const mean = (xs) => { const v = xs.filter((x) => x != null && isFinite(x)); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+  // Average of the regression statistics across the three time frames
+  function averaged(a) {
+    const fs = BASE.map((k) => a.frames && a.frames[k]).filter(Boolean);
+    if (!fs.length) return null;
+    const ann = (f) => f.coef.alpha.est * (f.per === "week" ? 52 : 12);
+    const sig = fs.filter((f) => f.coef.beta.p < 0.05).length;
+    const out = {
+      fs, sig,
+      beta: mean(fs.map((f) => f.coef.beta.est)), betaP: mean(fs.map((f) => f.coef.beta.p)),
+      r2: mean(fs.map((f) => f.r2)), adjR2: mean(fs.map((f) => f.adjR2)), corr: mean(fs.map((f) => f.corr)),
+      alphaAnn: mean(fs.map(ann)), alphaP: mean(fs.map((f) => f.coef.alpha.p)),
+      dw: mean(fs.map((f) => f.durbinWatson)), bp: mean(fs.map((f) => f.breuschPaganP)), jb: mean(fs.map((f) => f.jarqueBeraP)),
+      betaMin: Math.min(...fs.map((f) => f.coef.beta.est)), betaMax: Math.max(...fs.map((f) => f.coef.beta.est)),
+    };
+    out.status = sig >= 2 ? "Significant" : "Not significant";
+    out.result = `Average: beta ${out.beta.toFixed(2)}, R² ${out.r2.toFixed(2)}, significant in ${sig} of ${fs.length}`;
+    return out;
+  }
   const benchName = (a) => esc(a.bench || "S&P 500");
   const sigPill = (p) => (p == null ? "" : p < 0.05 ? '<span class="pill good">Significant at 5%</span>' : '<span class="pill bad">Not significant</span>');
   const statusPill = (s) => {
@@ -87,7 +107,66 @@
   }
 
   // ---------------- detail panel ----------------
+  function averageDetail(a) {
+    const v = averaged(a), isRate = (a.kind === "rate" || a.kind === "level"), bn = benchName(a);
+    const card = (l, val, sub = "") => `<div class="dstat"><div class="l">${l}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`;
+    const bLabel = isRate ? (a.sensLabel || "Sensitivity") : "Beta";
+    const agree = v.sig === v.fs.length ? "in every time frame" : v.sig === 0 ? "in none of the time frames" : `in ${v.sig} of ${v.fs.length} time frames`;
+    const sameSign = v.fs.every((f) => Math.sign(f.coef.beta.est) === Math.sign(v.fs[0].coef.beta.est));
+    const row = (f) => `<tr><td>${esc(f.frame)}</td><td class="num">${f.n}</td><td class="num">${n2(f.coef.beta.est, 3)}</td><td class="num">${pFmt(f.coef.beta.p)}</td><td class="num">${n2(f.r2, 3)}</td><td class="num">${n2(f.adjR2, 3)}</td><td class="num">${n2(f.corr, 3)}</td><td class="num">${n2(f.coef.alpha.est * (f.per === "week" ? 52 : 12), 1)}%</td><td class="num">${n2(f.durbinWatson)}</td><td>${f.coef.beta.p < 0.05 ? '<span class="pill good">Significant</span>' : '<span class="pill bad">Not significant</span>'}</td></tr>`;
+    // small grouped bar chart: beta and R² by time frame
+    const bars = (key, label, get, fmt) => {
+      const vals = [...v.fs.map(get), key === "beta" ? v.beta : v.r2];
+      const names = [...v.fs.map((f) => f.frame), "Average"];
+      const m = Math.max(...vals.map(Math.abs)) * 1.15 || 1, lo = Math.min(0, ...vals) < 0 ? -m : 0;
+      const { sx, sy, g } = frame([0, names.length], [lo, m], null, label, null, (t) => fmt(t));
+      const bw = (W - P.l - P.r) / names.length * 0.55;
+      let s = g + `<line x1="${P.l}" x2="${W - P.r}" y1="${sy(0)}" y2="${sy(0)}" stroke="#ab9a88"/>`;
+      names.forEach((nm, i) => {
+        const x = sx(i + 0.5), y = sy(vals[i]);
+        s += `<rect x="${x - bw / 2}" width="${bw}" y="${Math.min(y, sy(0))}" height="${Math.abs(y - sy(0))}" fill="${nm === "Average" ? "#6b3418" : "#b0612f"}" opacity="${nm === "Average" ? 1 : 0.55}"><title>${nm}: ${n2(vals[i], 3)}</title></rect>`;
+        s += `<text x="${x}" y="${vals[i] >= 0 ? y - 6 : y + 14}" text-anchor="middle" class="ax">${n2(vals[i])}</text>`;
+        s += `<text x="${x}" y="${H - P.b + 16}" text-anchor="middle" class="ax">${nm}</text>`;
+      });
+      return svg(s, `${label} by time frame`);
+    };
+    return `
+      <div class="dpanel">
+        <div class="dhead">
+          <div><h3>${esc(a.title)}</h3><p class="muted">${esc(a.question)}</p></div>
+          <div class="muted small">Average of the 5Y monthly, 10Y monthly and 1Y weekly regressions<br>Each time frame counts equally.</div>
+        </div>
+        <div class="dstats">
+          ${card(`Average ${bLabel.toLowerCase()}`, n2(v.beta) + (isRate ? "%" : ""), `range ${n2(v.betaMin)} to ${n2(v.betaMax)}`)}
+          ${card("Average R²", n2(v.r2), `avg. adj. R² ${n2(v.adjR2)}`)}
+          ${card("Average correlation", n2(v.corr), `Copper vs ${bn}`)}
+          ${card(isRate ? "Avg. intercept (annual)" : "Avg. alpha (annual)", n2(v.alphaAnn, 1) + "%", `avg. p = ${pFmt(v.alphaP)}`)}
+          ${card(`Average ${isRate ? "sensitivity" : "beta"} p-value`, pFmt(v.betaP), "see note below")}
+          ${card("Significant at 5%", `${v.sig} of ${v.fs.length}`, "time frames")}
+        </div>
+        <ul class="interp">
+          <li><b>Consistency:</b> the relationship is statistically significant ${agree}${sameSign ? `, and the ${isRate ? "sensitivity" : "beta"} has the same sign (${v.beta >= 0 ? "positive" : "negative"}) every time` : `${v.sig ? ", but" : ", and"} the sign of the ${isRate ? "sensitivity" : "beta"} flips between time frames, so the direction isn't reliable`}.</li>
+          <li><b>Average ${isRate ? "sensitivity" : "beta"} ${n2(v.beta)}:</b> ${isRate ? `across the three samples, a +1 ${esc(a.unit || "pp")} change in the ${esc(a.short2 || "driver")} lined up with about ${n2(Math.abs(v.beta))}% ${v.beta >= 0 ? "higher" : "lower"} copper returns` : `across the three samples, a 1% move in the ${bn} lined up with about a ${n2(v.beta)}% move in copper`}. The time frames range from ${n2(v.betaMin)} to ${n2(v.betaMax)}.</li>
+          <li><b>Average R² ${n2(v.r2)}:</b> the ${bn} explains about ${Math.round(v.r2 * 100)}% of copper's moves on average across the three time frames.</li>
+          <li><b>${isRate ? "The intercept" : "Alpha"} is annualized before averaging</b> (monthly × 12, weekly × 52) so the weekly and monthly numbers are comparable.</li>
+          <li><b>Read the average p-value with care:</b> averaging p-values isn't a formal test. "Significant in ${v.sig} of ${v.fs.length}" is the better summary, and the three samples overlap (the last year is in all of them), so they aren't independent checks.</li>
+        </ul>
+        <div class="plots">
+          ${bars("beta", isRate ? "Sensitivity" : "Beta", (f) => f.coef.beta.est, (t) => +t.toFixed(2))}
+          ${bars("r2", "R²", (f) => f.r2, (t) => +t.toFixed(2))}
+        </div>
+        <h4>Side by side</h4>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Time frame</th><th class="num">n</th><th class="num">${isRate ? "Sensitivity" : "Beta"}</th><th class="num">p-value</th><th class="num">R²</th><th class="num">Adj. R²</th><th class="num">Correlation</th><th class="num">${isRate ? "Intercept" : "Alpha"} (annual)</th><th class="num">Durbin-Watson</th><th></th></tr></thead>
+          <tbody>${v.fs.map(row).join("")}
+            <tr class="avgrow"><td><b>Average</b></td><td class="num">—</td><td class="num"><b>${n2(v.beta, 3)}</b></td><td class="num">${pFmt(v.betaP)}</td><td class="num"><b>${n2(v.r2, 3)}</b></td><td class="num">${n2(v.adjR2, 3)}</td><td class="num">${n2(v.corr, 3)}</td><td class="num">${n2(v.alphaAnn, 1)}%</td><td class="num">${n2(v.dw)}</td><td>${statusPill(v.status)}</td></tr>
+          </tbody></table></div>
+        <p class="muted small">Switch to a single time frame above for that regression's scatter plot, residuals, rolling beta and full diagnostics.</p>
+      </div>`;
+  }
+
   function detail(a) {
+    if (TF === "Average" && a.frames) return averageDetail(a);
     a = pick(a);
     const b = a.coef.beta, al = a.coef.alpha, bn = benchName(a);
     const per = a.per || "month", adj = a.adj || "monthly";
@@ -186,8 +265,13 @@
   window.renderDrivers = function (drivers, tableEl, filtersEl, frameEl) {
     let filter = "All";
     // "Monthly return (5Y)" -> "Weekly return (1Y)" etc. for drivers with an analysis
-    const frameMeasure = (m) => m.replace(/^Monthly/, TF.endsWith("weekly") ? "Weekly" : "Monthly").replace("(5Y)", `(${TF.split(" ")[0]})`);
-    const statusOf = (d) => { const a = pick(A[d.driver]); return a ? { status: a.status, result: a.result } : d; };
+    const frameMeasure = (m) => TF === "Average" ? m.replace(/^Monthly /, "").replace(/^./, (c) => c.toUpperCase()).replace("(5Y)", "(average of 3 time frames)")
+      : m.replace(/^Monthly/, TF.endsWith("weekly") ? "Weekly" : "Monthly").replace("(5Y)", `(${TF.split(" ")[0]})`);
+    const statusOf = (d) => {
+      const raw = A[d.driver];
+      if (raw && TF === "Average" && raw.frames) { const v = averaged(raw); return { status: v.status, result: v.result }; }
+      const a = pick(raw); return a ? { status: a.status, result: a.result } : d;
+    };
     const open = new Set(Object.keys(A).slice(0, 1)); // first analysed driver starts open
     function draw() {
       const rows = filter === "All" ? drivers : drivers.filter((d) => d.category === filter);
