@@ -5,6 +5,7 @@ window.DRIVERS = [
   { category: "Macro", driver: "S&P 500 returns", measure: "Monthly return (5Y)", source: "yfinance (SPY)", status: "Not tested", result: "" },
   { category: "Macro", driver: "US dollar", measure: "Monthly % change in DXY (5Y)", source: "yfinance (DX-Y.NYB)", status: "Not tested", result: "" },
   { category: "Macro", driver: "10-year Treasury yield", measure: "Monthly change in yield, pp (5Y)", source: "yfinance (^TNX)", status: "Not tested", result: "" },
+  { category: "Demand", driver: "AI stocks", measure: "Monthly return (5Y)", source: "yfinance (AIQ)", status: "Not tested", result: "" },
   { category: "Demand", driver: "China stocks", measure: "Monthly return (5Y)", source: "yfinance (FXI)", status: "Not tested", result: "" },
   { category: "Demand", driver: "China industrial activity", measure: "Caixin / NBS manufacturing PMI, industrial production", source: "FRED, NBS", status: "Not tested", result: "" },
   { category: "Demand", driver: "Electrification", measure: "EV sales, grid and data-center spending", source: "IEA, company reports", status: "Not tested", result: "" },
